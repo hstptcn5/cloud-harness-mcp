@@ -1,5 +1,5 @@
-import { createHash } from 'node:crypto';
-import { readFile, mkdir, writeFile, rename, rm, lstat, realpath } from 'node:fs/promises';
+import { createHash, randomUUID } from 'node:crypto';
+import { readFile, mkdir, writeFile, rename, link, rm, lstat, realpath } from 'node:fs/promises';
 import { basename, dirname, resolve, sep, extname } from 'node:path';
 import { makeImagePreview } from './asset-preview.mjs';
 
@@ -107,10 +107,15 @@ export async function assetImport(input) {
   // Re-check after mkdir; never follow a newly introduced symlink.
   try {target=await safeAssetPath(path,true);}catch{return invalid('unsafe destination path');}
   try {await lstat(target); if(!overwrite)return invalid('target already exists');}catch(e){if(e.code!=='ENOENT') {if(e.message==='target already exists')return invalid(e.message);throw e;}}
-  const tmp=resolve(parent,`.asset-${process.pid}-${sha256.slice(0,16)}.tmp`);
+  const tmp=resolve(parent,`.asset-${randomUUID()}.tmp`);
   try {
     await writeFile(tmp,bytes,{flag:'wx',mode:0o600});
-    await rename(tmp,target);
+    if (overwrite) await rename(tmp,target);
+    else {
+      // Atomic no-clobber: a preflight lstat followed by rename is race-prone.
+      try { await link(tmp,target); }
+      catch(e) { if(e.code==='EEXIST') return invalid('target already exists'); throw e; }
+    }
   } finally {await rm(tmp,{force:true});}
   return success('Asset imported',{path,format:kind,sizeBytes:bytes.length,sha256});
 }

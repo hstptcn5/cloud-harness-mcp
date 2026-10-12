@@ -59,6 +59,8 @@ import { DASHBOARD_GROUPS, navGroups, navigationPageId, pageById, pageForPath, p
 
 const focusableSelector = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 const SKILL_ARCHIVE_MAX_BYTES = 8 * 1024 * 1024;
+const WORKSPACE_ASSET_MAX_BYTES = 6_000_000;
+const WORKSPACE_ASSET_TYPES = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp', zip: 'application/zip' };
 
 export function trapModalFocus(container, event) {
   if (event.key !== 'Tab') return;
@@ -3506,6 +3508,49 @@ export function initializeDashboard() {
     document.querySelector('#delete-file').addEventListener('click', (event) => confirmAction({ title: 'Delete file?', description: `Delete ${file.path} from this workspace?`, target: file.path, label: 'Delete file', pendingLabel: 'Deleting…', action: async () => { await api(`/workspaces/${encodeURIComponent(id)}/files/content`, { method: 'DELETE', body: requestBody({ path: file.path, recursive: false, expectedSha256: file.sha256 }) }); navigateTo(`/dashboard/workspaces/${encodeURIComponent(id)}/files?path=.`); } }, event.currentTarget));
   }
   function bindFileOperations(id) {
+    const assetForm = document.querySelector('#asset-upload-form');
+    const assetFile = document.querySelector('#asset-upload-file');
+    const assetPath = document.querySelector('#asset-upload-path');
+    const assetStatus = document.querySelector('#asset-upload-status');
+    assetFile?.addEventListener('change', () => {
+      const selected = assetFile.files?.[0];
+      if (!selected || !assetPath) return;
+      const directory = assetForm?.dataset.directory ?? '.';
+      // The browser supplies only the basename; the user can still edit the target.
+      const filename = selected.name.split(/[\\/]/).at(-1);
+      assetPath.value = directory === '.' ? filename : `${directory}/${filename}`;
+      if (assetStatus) assetStatus.textContent = '';
+    });
+    assetForm?.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const selected = assetFile?.files?.[0];
+      const destination = String(assetPath?.value ?? '').trim();
+      const extension = selected?.name.split('.').at(-1)?.toLowerCase();
+      const mimeType = extension ? WORKSPACE_ASSET_TYPES[extension] : undefined;
+      if (!selected || !mimeType || !destination) {
+        if (assetStatus) assetStatus.textContent = 'Choose a PNG, JPEG, WebP or ZIP and a destination path.';
+        return;
+      }
+      if (!selected.size || selected.size > WORKSPACE_ASSET_MAX_BYTES) {
+        if (assetStatus) assetStatus.textContent = 'File must be between 1 byte and 6,000,000 bytes.';
+        return;
+      }
+      const button = assetForm.querySelector('button[type="submit"]');
+      button.disabled = true;
+      if (assetStatus) assetStatus.textContent = 'Uploading file…';
+      try {
+        await api(`/workspaces/${encodeURIComponent(id)}/assets/upload?path=${encodeURIComponent(destination)}`, {
+          method: 'POST', headers: { 'content-type': mimeType }, body: await selected.arrayBuffer()
+        });
+        announce(`Uploaded ${destination} to the workspace.`);
+        await loadFiles(id);
+      } catch (error) {
+        if (assetStatus) assetStatus.textContent = error.message ?? 'Upload failed.';
+        showError(error);
+      } finally {
+        button.disabled = false;
+      }
+    });
     document.querySelector('#folder-form').addEventListener('submit', async (event) => { event.preventDefault(); const form = new FormData(event.currentTarget); try { await api(`/workspaces/${encodeURIComponent(id)}/files/directory`, { method: 'POST', body: requestBody({ path: form.get('path'), recursive: true }) }); announce('Folder created.'); await loadFiles(id); } catch (error) { showError(error); } });
     document.querySelector('#move-form').addEventListener('submit', async (event) => { event.preventDefault(); const form = new FormData(event.currentTarget); try { await api(`/workspaces/${encodeURIComponent(id)}/files/move`, { method: 'POST', body: requestBody({ source: form.get('source'), destination: form.get('destination'), overwrite: false }) }); announce('Path moved.'); await loadFiles(id); } catch (error) { showError(error); } });
   }

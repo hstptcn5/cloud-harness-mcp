@@ -14,7 +14,7 @@ export async function makeImagePreview(original, maxEdge = 1024) {
   return await new Promise((resolve, reject) => {
     const child = spawn('convert', args, { stdio: ['pipe', 'pipe', 'pipe'], env: { PATH: '/usr/bin:/bin', MAGICK_CONFIGURE_PATH: '/etc/ImageMagick-6' } });
     const chunks = [];
-    let length = 0, stderr = '', settled = false;
+    let length = 0, settled = false;
     const finish = (err, result) => {
       if (settled) return;
       settled = true;
@@ -27,7 +27,7 @@ export async function makeImagePreview(original, maxEdge = 1024) {
       if (length > 500000) { child.kill('SIGKILL'); finish(new Error('preview exceeds transport budget')); }
       else chunks.push(chunk);
     });
-    child.stderr.on('data', (chunk) => { stderr = (stderr + chunk.toString('utf8')).slice(-512); });
+    child.stderr.resume(); // Never echo image decoder diagnostics or untrusted file metadata.
     child.on('error', () => finish(new Error('preview converter unavailable')));
     child.on('close', (code) => {
       if (code !== 0) finish(new Error('thumbnail conversion failed'));
