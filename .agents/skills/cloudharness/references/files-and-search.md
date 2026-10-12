@@ -133,7 +133,7 @@ Import a binary asset using canonical base64 bytes into the active workspace.
 - Required: `referencePath`, `candidatePath`; each must be a workspace image.
 - Reports metadata equality and byte identity. It does **not** score visual similarity or use a model.
 
-See `docs/asset-vision.md` for security constraints and deployment prerequisites.
+Security constraints: imports do not follow symlink parents, do not overwrite by default, and do not extract ZIPs. The dashboard is the supported upload path for files above the MCP request-size limit.
 
 ## Search
 

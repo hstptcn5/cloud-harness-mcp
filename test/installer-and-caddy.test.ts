@@ -4,7 +4,7 @@ import { inspectBenchmarkEnvironment, runIsolationBenchmarkHarness, type Benchma
 describe('OSS 1-Click Installer & Ingress Templates', () => {
   it('scripts/install.sh exists and contains required preflight and deployment steps', () => {
     expect(existsSync('scripts/install.sh')).toBe(true);
-    const content = readFileSync('scripts/install.sh', 'utf8');
+    const content = readFileSync('scripts/install.sh', 'utf8').replace(/\r\n/g, '\n');
 
     expect(content).toContain('set -euo pipefail');
     expect(content).toContain('EUID');

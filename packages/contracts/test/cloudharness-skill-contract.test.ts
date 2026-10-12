@@ -26,7 +26,7 @@ function toolsFrom(markdown: string) {
 }
 
 function examplesFrom(markdown: string) {
-  return [...markdown.matchAll(/<!-- cloudharness-example:([a-z_]+)\n([\s\S]*?)\n-->/g)].map((entry) => ({
+  return [...markdown.matchAll(/<!-- cloudharness-example:([a-z_]+)\r?\n([\s\S]*?)\r?\n-->/g)].map((entry) => ({
     operation: entry[1],
     input: JSON.parse(entry[2]) as unknown
   }));
