@@ -24,6 +24,8 @@ jobs:
           node-version: 24.11.0
           cache: npm
       - run: npm ci
+      - name: Test Asset Bridge and image tools without external services
+        run: npm run test:asset
       - run: bash -n worker/clone-helper.sh worker/task-runner.sh worker/shell-runner.sh worker/worker-runner.sh worker/gh-helper.sh deploy/scripts/bootstrap-vps.sh deploy/scripts/deploy-release.sh deploy/scripts/release-runtime.sh deploy/scripts/rollback-release.sh deploy/scripts/deploy-ssh-wrapper.sh deploy/scripts/upgrade-nginx-dashboard.sh
       - run: npm run verify:compose
       - run: npm run verify
@@ -52,7 +54,7 @@ jobs:
             --entrypoint node cloud-harness-executor:local --input-type=module -e "
               import assert from 'node:assert/strict';
               import { makeImagePreview } from '/opt/harness/asset-preview.mjs';
-              const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScL4QgAAAABJRU5ErkJggg==','base64');
+              const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR4nGP4DwQACfsD/fteaysAAAAASUVORK5CYII=','base64');
               const jpeg = await makeImagePreview(png,512);
               assert.ok(jpeg.length < 500000);
               assert.equal(jpeg.subarray(0,3).toString('hex'),'ffd8ff');

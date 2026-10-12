@@ -125,7 +125,7 @@ describe('dashboard BFF', () => {
   it('uploads authenticated image bytes with SHA-256 and a workspace-bound destination', async () => {
     const session = await send('/api/v1/session');
     const cookie = String(session.headers['set-cookie']?.[0]).split(';', 1)[0];
-    const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScL4QgAAAABJRU5ErkJggg==', 'base64');
+    const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR4nGP4DwQACfsD/fteaysAAAAASUVORK5CYII=', 'base64');
     const destination = 'assets/woodland spirit.png';
     const url = `/api/v1/workspaces/${workspaceId}/assets/upload?path=${encodeURIComponent(destination)}`;
     const headers = { origin: 'https://dashboard.example', cookie, 'x-csrf-token': session.json.csrfToken, 'content-type': 'image/png' };
@@ -144,7 +144,7 @@ describe('dashboard BFF', () => {
   });
 
   it('requires origin, CSRF and supported media type for asset uploads', async () => {
-    const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScL4QgAAAABJRU5ErkJggg==', 'base64');
+    const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR4nGP4DwQACfsD/fteaysAAAAASUVORK5CYII=', 'base64');
     const url = `/api/v1/workspaces/${workspaceId}/assets/upload?path=assets%2Ftest.png`;
     const session = await send('/api/v1/session');
     const cookie = String(session.headers['set-cookie']?.[0]).split(';', 1)[0];

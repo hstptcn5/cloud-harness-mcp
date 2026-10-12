@@ -4,7 +4,7 @@ The canonical tool contracts are in `packages/contracts/src/tool-schemas.ts`. Th
 
 ## Tools
 
-- `asset_import`: import base64-encoded PNG, JPEG, WebP, or ZIP into an owner-bound workspace. Input is `{workspaceId, path, kind, contentBase64, expectedSha256?, overwrite?}`. Maximum decoded payload is 6,000,000 bytes, with a request limit of 8,000,000 base64 characters. Validates canonical base64, magic header, extension, optional SHA-256, and workspace-confined path. Does **not** extract ZIP, execute data, or auto-commit imported files.
+- `asset_import`: import base64-encoded PNG, JPEG, WebP, or ZIP into an owner-bound workspace. Input is `{workspaceId, path, kind, contentBase64, expectedSha256?, overwrite?}`. Maximum decoded payload is 6,000,000 bytes, with a tool input limit of 8,000,000 base64 characters. **Direct MCP calls additionally obey `MAX_BODY_BYTES` (1 MiB by default, maximum 4 MiB), so their practical import size is smaller; use the authenticated dashboard upload for files up to 6 MB.** Validates canonical base64, magic header, extension, optional SHA-256, and workspace-confined path. Does **not** extract ZIP, execute data, or auto-commit imported files.
 - `image_inspect`: inspect a workspace PNG/JPEG/WebP (`path`, optional `includeBase64`, default true). Returns format, width, height, SHA-256, size. For images up to 500,000 bytes, emits original MCP image content to vision-capable clients. For larger supported images, uses a constrained ImageMagick process in the executor to generate a JPEG preview, no larger than 500 KB. Original assets are unchanged. `previewMaxEdge` defaults to 1024 pixels (128–2048). `includeBase64:false` returns metadata only.
 - `image_compare`: compares two workspace images by format, dimensions, and SHA-256, reporting exact equality. This is **not** a perceptual image difference, semantic visual judgment, or a generative-model evaluation.
 
@@ -18,4 +18,4 @@ No secrets are needed or exposed by these tools. They do not deploy code, instal
 
 ## Development
 
-Run `node --test worker/test/asset-vision.test.mjs` for focused worker validation. The executor Dockerfile must install `worker/asset-vision.mjs` beside `harness-worker.mjs`. Run `npm run verify`, Docker tests, and MCP end-to-end tests on a machine with working dependencies/Docker before deployment. These tools are experimental until those gates are green.
+Run `npm run test:asset` for focused worker/UI security validation. The executor Dockerfile must install `worker/asset-vision.mjs` beside `harness-worker.mjs`. Run `npm run verify`, Docker tests, and MCP end-to-end tests on a machine with working dependencies/Docker before deployment. These tools are experimental until those gates are green.

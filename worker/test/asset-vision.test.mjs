@@ -4,7 +4,7 @@ import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { assetImport, imageMetadata, inspectImage, compareImages } from '../asset-vision.mjs';
-const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScL4QgAAAABJRU5ErkJggg==','base64');
+const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR4nGP4DwQACfsD/fteaysAAAAASUVORK5CYII=','base64');
 test('metadata parses PNG dimensions',()=>assert.deepEqual(imageMetadata(png),{format:'png',mimeType:'image/png',width:1,height:1}));
 test('import inspect compare rejects traversal and wrong signature',async()=>{
  const root=await mkdtemp(join(tmpdir(),'vision-tools-'));

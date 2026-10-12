@@ -94,6 +94,29 @@ describe('internal runner HTTP boundary', () => {
     expect(unauthenticated.status).toBe(401);
   });
 
+  it('accepts asset_import over 1 MiB without lifting the cap for other operations', async () => {
+    const execute = vi.fn(async () => ({ ok: true, message: 'Imported', data: { path: 'art/image.png' }, truncated: false }));
+    const { url, token } = await start({ execute, executeInternal: vi.fn() });
+    const headers = { authorization: `Bearer ${token}`, 'content-type': 'application/json' };
+    const principal = { kind: 'external', issuer: 'https://access.example.com', subject: 'owner' };
+    // 1.5 MB of base64: this previously failed at the global 1 MiB parser.
+    const contentBase64 = 'A'.repeat(1_500_000);
+    const body = { version: 2, principal, operation: 'asset_import', input: { path: 'art/image.png', kind: 'png', contentBase64 } };
+    const imported = await fetch(`${url}/v1/operations`, { method: 'POST', headers, body: JSON.stringify(body) });
+    expect(imported.status).toBe(200);
+    expect(execute).toHaveBeenCalledWith(principal, 'asset_import', body.input, expect.any(AbortSignal));
+
+    const oversizedOther = { ...body, operation: 'files_write' };
+    const rejected = await fetch(`${url}/v1/operations`, { method: 'POST', headers, body: JSON.stringify(oversizedOther) });
+    expect(rejected.status).toBe(413);
+    expect(execute).toHaveBeenCalledTimes(1);
+
+    const unauthenticated = await fetch(`${url}/v1/operations`, {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body)
+    });
+    expect(unauthenticated.status).toBe(401);
+  });
+
   it('exposes the first Zod validation issue on the internal endpoint', async () => {
     const controls = {
       execute: vi.fn(() => {

@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { readFile, mkdir, writeFile, rename, link, rm, lstat, realpath } from 'node:fs/promises';
-import { basename, dirname, resolve, sep, extname } from 'node:path';
+import { dirname, relative, resolve, sep, extname } from 'node:path';
 import { makeImagePreview } from './asset-preview.mjs';
 
 const MAX_ASSET_BYTES = 6_000_000;
@@ -17,19 +17,18 @@ export async function safeAssetPath(input, createParent = false) {
   const root = await realpath(ROOT());
   const candidate = resolve(root, normalized);
   if (!candidate.startsWith(root + sep)) throw new Error('path escapes workspace');
-  let dir = dirname(candidate);
-  while (true) {
+  // Check EVERY existing ancestor, not just the nearest one. A nested
+  // symlink pointing inside the workspace is unsafe too: it can be retargeted.
+  let dir = root;
+  for (const component of relative(root, dirname(candidate)).split(sep).filter(Boolean)) {
+    dir = resolve(dir, component);
     try {
-      // Reject symlink components even when they currently resolve inside the root.
-      // A later retarget could otherwise redirect a write outside the workspace.
-      if ((await lstat(dir)).isSymbolicLink()) throw new Error('symlink parent forbidden');
-      const actual = await realpath(dir);
-      if (actual !== root && !actual.startsWith(root + sep)) throw new Error('symlink escapes workspace');
-      break;
+      const stat = await lstat(dir);
+      if (stat.isSymbolicLink()) throw new Error('symlink parent forbidden');
+      if (!stat.isDirectory()) throw new Error('parent is not a directory');
     } catch (e) {
-      if (e.code !== 'ENOENT') throw e;
-      if (dir === root) throw e;
-      dir = dirname(dir);
+      if (e.code === 'ENOENT' && createParent) continue;
+      throw e;
     }
   }
   try {

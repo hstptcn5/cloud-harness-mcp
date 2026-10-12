@@ -4,7 +4,7 @@ import { existsSync } from 'node:fs';
 import { makeImagePreview } from '../asset-preview.mjs';
 import { imageMetadata } from '../asset-vision.mjs';
 
-const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScL4QgAAAABJRU5ErkJggg==', 'base64');
+const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR4nGP4DwQACfsD/fteaysAAAAASUVORK5CYII=', 'base64');
 
 test('preview edge is bounded before spawning a converter', async () => {
   await assert.rejects(makeImagePreview(png, 127), /invalid preview edge/);
