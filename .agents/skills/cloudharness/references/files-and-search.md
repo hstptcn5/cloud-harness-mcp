@@ -125,7 +125,7 @@ Import a binary asset using canonical base64 bytes into the active workspace.
 ### `image_inspect`
 
 - Required: workspace-relative image `path`. Optional: `includeBase64` (default true).
-- Returns format, dimensions, digest, and size. Under 500 KB, returns native MCP image content so a vision-capable client can look at it. For larger files set `includeBase64:false` or prepare a smaller preview.
+- Returns format, dimensions, digest, and size. Under 500 KB, sends native MCP image content; larger supported images are rendered to a safe bounded JPEG preview inside the executor (`previewMaxEdge` 128–2048, default 1024). Set `includeBase64:false` to receive metadata only.
 
 <!-- cloudharness-tool:image_compare -->
 ### `image_compare`

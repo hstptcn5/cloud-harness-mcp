@@ -10,6 +10,7 @@ RUN apt-get update \
     curl \
     git \
     jq \
+    imagemagick \
     patch \
     procps \
     ripgrep \
@@ -63,6 +64,7 @@ RUN mkdir -p /workspace /opt/user-tools /var/cache/harness /tmp/cloud-harness-ho
 
 COPY --chown=root:root worker/harness-worker.mjs /opt/harness/harness-worker.mjs
 COPY --chown=root:root worker/asset-vision.mjs /opt/harness/asset-vision.mjs
+COPY --chown=root:root worker/asset-preview.mjs /opt/harness/asset-preview.mjs
 COPY --chown=root:root worker/clone-helper.sh /opt/harness/clone-helper.sh
 COPY --chown=root:root worker/git-transfer-helper.sh /opt/harness/git-transfer-helper.sh
 COPY --chown=root:root worker/task-runner.sh /opt/harness/task-runner.sh

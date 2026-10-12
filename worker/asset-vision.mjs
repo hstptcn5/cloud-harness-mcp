@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { readFile, mkdir, writeFile, rename, rm, lstat, realpath } from 'node:fs/promises';
 import { basename, dirname, resolve, sep, extname } from 'node:path';
+import { makeImagePreview } from './asset-preview.mjs';
 
 const MAX_ASSET_BYTES = 6_000_000;
 const MAX_INLINE_BYTES = 500_000;
@@ -122,8 +123,17 @@ export async function inspectImage(input) {
   const bytes=await readFile(path);
   let metadata;try {metadata=imageMetadata(bytes);}catch{return invalid('file is not a supported image');}
   if(metadata.width*metadata.height>100_000_000)return invalid('image pixel count exceeds safety limit');
-  if(input.includeBase64 && bytes.length>MAX_INLINE_BYTES)return invalid('image too large for inline transfer');
-  return success('Image inspected',{path:input.path,...metadata,sizeBytes:bytes.length,sha256:digest(bytes),...(input.includeBase64?{contentBase64:bytes.toString('base64')}:{}),analysis:'Metadata only. Provide contentBase64 to an authorized vision-capable client for semantic analysis.'});
+  const details = {path:input.path,...metadata,sizeBytes:bytes.length,sha256:digest(bytes)};
+  if (!input.includeBase64) return success('Image metadata inspected',{...details,analysis:'Metadata only; request includeBase64 to receive image content.'});
+  if (bytes.length<=MAX_INLINE_BYTES) return success('Image inspected',{...details,contentBase64:bytes.toString('base64'),analysis:'Native MCP image content is returned to the vision-capable client.'});
+  try {
+    const preview=await makeImagePreview(bytes,input.previewMaxEdge ?? 1024);
+    const previewMetadata=imageMetadata(preview);
+    return success('Image preview inspected',{...details,contentBase64:preview.toString('base64'),mimeType:previewMetadata.mimeType,
+      preview:{width:previewMetadata.width,height:previewMetadata.height,sizeBytes:preview.length,derivedFromOriginal:true},analysis:'Vision client receives a resized JPEG preview; the original is unchanged.'});
+  } catch {
+    return invalid('image exceeds inline transport budget and preview rendering failed; use includeBase64:false for metadata');
+  }
 }
 
 export async function compareImages(input) {

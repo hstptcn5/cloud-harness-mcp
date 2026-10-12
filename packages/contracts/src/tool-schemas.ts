@@ -536,7 +536,8 @@ const schemas = {
   image_inspect: z.object({
     ...workspace,
     path: relativePath,
-    includeBase64: z.boolean().default(true)
+    includeBase64: z.boolean().default(true),
+    previewMaxEdge: z.number().int().min(128).max(2048).default(1024)
   }),
   image_compare: z.object({
     ...workspace,
