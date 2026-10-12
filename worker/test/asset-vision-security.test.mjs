@@ -4,6 +4,8 @@ import { mkdtemp, mkdir, symlink, rm, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { assetImport } from '../asset-vision.mjs';
+// Directory junctions work on standard Windows accounts without Developer Mode.
+const directoryLinkType = process.platform === 'win32' ? 'junction' : 'dir';
 const png=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR4nGP4DwQACfsD/fteaysAAAAASUVORK5CYII=','base64');
 test('binary import rejects mismatched hash and destination extension',async()=>{
  const root=await mkdtemp(join(tmpdir(),'asset-guard-'));
@@ -15,10 +17,10 @@ test('binary import rejects mismatched hash and destination extension',async()=>
   assert.equal((await assetImport({...base,contentBase64:'!!!'})).ok,false);
   assert.equal((await assetImport({...base,path:'nested/../a.png'})).ok,false);
   await mkdir(join(root,'link'));
-  await symlink(join(root,'link'),join(root,'redirect'));
+  await symlink(join(root,'link'),join(root,'redirect'),directoryLinkType);
   assert.equal((await assetImport({...base,path:'redirect/escape.png'})).ok,false);
   await mkdir(join(root,'real','nested'),{recursive:true});
-  await symlink(join(root,'real'),join(root,'inside-link'));
+  await symlink(join(root,'real'),join(root,'inside-link'),directoryLinkType);
   assert.equal((await assetImport({...base,path:'inside-link/nested/a.png'})).ok,false);
  }finally{await rm(root,{recursive:true,force:true});}
 });
