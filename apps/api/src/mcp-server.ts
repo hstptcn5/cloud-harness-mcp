@@ -25,7 +25,8 @@ export function resultToMcp(result: ToolResult): CallToolResult {
     const mime = record.mimeType;
     if (typeof raw === 'string' && raw.length <= 700_000
       && (mime === 'image/png' || mime === 'image/jpeg' || mime === 'image/webp')) {
-      const { contentBase64: _ignored, ...metadata } = record;
+      const metadata = { ...record };
+      delete metadata.contentBase64;
       const safeResult = { ...result, data: metadata };
       return {
         content: [
