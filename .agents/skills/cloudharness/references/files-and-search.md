@@ -112,6 +112,29 @@ Create a directory below the workspace root.
 - Repeating a successful call is safe. With `recursive: false`, the parent must
   already exist.
 
+## Binary assets and image vision
+
+<!-- cloudharness-tool:asset_import -->
+### `asset_import`
+
+Import a binary asset using canonical base64 bytes into the active workspace.
+- Required: `path`, `contentBase64`, `kind` (`png`, `jpeg`, `webp`, `zip`). Optional: `workspaceId`, `expectedSha256`, `overwrite` (default false).
+- Up to 6 MB decoded; checks type signature, destination extension, hash and workspace path. ZIP is stored only, never extracted. No implicit access to ChatGPT files.
+
+<!-- cloudharness-tool:image_inspect -->
+### `image_inspect`
+
+- Required: workspace-relative image `path`. Optional: `includeBase64` (default true).
+- Returns format, dimensions, digest, and size. Under 500 KB, returns native MCP image content so a vision-capable client can look at it. For larger files set `includeBase64:false` or prepare a smaller preview.
+
+<!-- cloudharness-tool:image_compare -->
+### `image_compare`
+
+- Required: `referencePath`, `candidatePath`; each must be a workspace image.
+- Reports metadata equality and byte identity. It does **not** score visual similarity or use a model.
+
+See `docs/asset-vision.md` for security constraints and deployment prerequisites.
+
 ## Search
 
 <!-- cloudharness-tool:grep_search -->

@@ -18,7 +18,7 @@ network isolation.
 | Install the skill, connect a client, use the MCP gateway surface, or understand trust boundaries | [Installation and security](references/installation-and-security.md) |
 | Choose a tool and locate its detailed contract | [Tool reference index](references/tool-reference.md) |
 | Open, recover, inspect, or close a workspace; interpret results/errors | [Workspace lifecycle and results](references/workspace-lifecycle-and-results.md) |
-| List, read, write, patch, move, delete, grep, or search symbols | [Files and search](references/files-and-search.md) |
+| List, read, write, patch, move, delete, grep, search symbols, import binary assets, inspect/compare images | [Files and search](references/files-and-search.md) |
 | Run a command, interactive shell, coding session, or dependency task | [Execution and tasks](references/execution-and-tasks.md) |
 | Inspect or change Git state, transfer origin refs, or use worktrees | [Git and worktrees](references/git-and-worktrees.md) |
 | Read/run repository skills, hooks, knowledge (memories & journals), or deployments | [Repository automation](references/repository-automation.md) |

@@ -1,0 +1,21 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { mkdtemp, mkdir, symlink, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { assetImport } from '../asset-vision.mjs';
+const png=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScL4QgAAAABJRU5ErkJggg==','base64');
+test('binary import rejects mismatched hash and destination extension',async()=>{
+ const root=await mkdtemp(join(tmpdir(),'asset-guard-'));
+ process.env.HARNESS_WORKSPACE_ROOT=root;
+ try {
+  const base={path:'out/a.png',kind:'png',contentBase64:png.toString('base64')};
+  assert.equal((await assetImport({...base,expectedSha256:'0'.repeat(64)})).ok,false);
+  assert.equal((await assetImport({...base,path:'out/a.zip'})).ok,false);
+  assert.equal((await assetImport({...base,contentBase64:'!!!'})).ok,false);
+  assert.equal((await assetImport({...base,path:'nested/../a.png'})).ok,false);
+  await mkdir(join(root,'link'));
+  await symlink(join(root,'link'),join(root,'redirect'));
+  assert.equal((await assetImport({...base,path:'redirect/escape.png'})).ok,false);
+ }finally{await rm(root,{recursive:true,force:true});}
+});

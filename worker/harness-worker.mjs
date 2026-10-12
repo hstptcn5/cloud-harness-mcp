@@ -4,6 +4,7 @@ import { chmod, cp, lstat, mkdir, readFile, readdir, realpath, rename, rm, stat,
 import { tmpdir } from 'node:os';
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { spawn } from 'node:child_process';
+import { assetImport, inspectImage, compareImages } from './asset-vision.mjs';
 
 function getWorkspaceRoot() {
   const raw = process.env.HARNESS_WORKSPACE_ROOT || process.env.CH_WORKSPACE_ROOT || '/workspace';
@@ -801,6 +802,9 @@ async function hookEntries() {
 
 
 const handlers = {
+  async asset_import(input) { return await assetImport(input); },
+  async image_inspect(input) { return await inspectImage(input); },
+  async image_compare(input) { return await compareImages(input); },
   async workspace_context(input) {
     const manifest = await scanWorkspaceContext(input);
     return ok('Workspace context scanned', { manifest });
