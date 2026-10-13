@@ -13,6 +13,7 @@ beforeEach(async () => {
   app.use(...mcpAssetBodyParser(standardLimit));
   app.post('/mcp', (request, response) => response.json({ size: JSON.stringify(request.body).length }));
   app.use((error: { status?: number }, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+    void _next; // Express recognizes this as error middleware only with four parameters.
     res.status(error.status ?? 500).json({ error: 'parser_error' });
   });
   server = createServer(app);
@@ -59,7 +60,7 @@ describe('large MCP image import body guard', () => {
   });
 
   it('rejects oversized asset_import envelopes without an actual byte payload', async () => {
-    const { params, ...outer } = tool('asset_import');
+    const outer = tool('asset_import');
     const response = await post({
       ...outer, params: { name: 'asset_import', arguments: { path: 'x.png', kind: 'png', useless: 'A'.repeat(700) } }
     });
