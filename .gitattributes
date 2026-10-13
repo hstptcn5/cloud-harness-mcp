@@ -1,0 +1,9 @@
+# Keep Linux executables and Docker build inputs in LF format on Windows.
+*.sh text eol=lf
+*.bash text eol=lf
+*.mjs text eol=lf
+Dockerfile text eol=lf
+*.Dockerfile text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+worker/bin/* text eol=lf

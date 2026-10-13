@@ -68,6 +68,7 @@ beforeEach(async () => {
         events: [{ cursor: '0', nextCursor: '1', timestamp: '2026-08-17T00:00:30.000Z', type: 'tool.call', content: `hello ${'x'.repeat(5_000)}` }]
       } };
       if (operation === 'files_write') return { ok: true, message: 'written', truncated: false, data: { path: input.path, sha256: 'b'.repeat(64) } };
+      if (operation === 'asset_import') return { ok: true, message: 'imported', truncated: false, data: { path: input.path, sha256: input.expectedSha256, sizeBytes: Buffer.from(String(input.contentBase64), 'base64').length, format: input.kind, ownerId: 'do-not-leak' } };
       return { ok: true, message: 'ok', truncated: false, data: {} };
     }),
     callInternal: vi.fn(async (operation, input, selected): Promise<RunnerResponse> => {
@@ -104,7 +105,7 @@ beforeEach(async () => {
 
 afterEach(async () => await new Promise<void>((resolve) => server.close(() => resolve())));
 
-function send(path: string, options: { method?: string; headers?: Record<string, string>; body?: string } = {}): Promise<Reply> {
+function send(path: string, options: { method?: string; headers?: Record<string, string>; body?: string | Buffer } = {}): Promise<Reply> {
   return new Promise((resolve, reject) => {
     const request = httpRequest({ hostname: '127.0.0.1', port, path: `/dashboard${path}`, method: options.method ?? 'GET', headers: { host: 'dashboard.example', ...options.headers } }, (response) => {
       const chunks: Buffer[] = [];
@@ -121,6 +122,39 @@ function send(path: string, options: { method?: string; headers?: Record<string,
 }
 
 describe('dashboard BFF', () => {
+  it('uploads authenticated image bytes with SHA-256 and a workspace-bound destination', async () => {
+    const session = await send('/api/v1/session');
+    const cookie = String(session.headers['set-cookie']?.[0]).split(';', 1)[0];
+    const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR4nGP4DwQACfsD/fteaysAAAAASUVORK5CYII=', 'base64');
+    const destination = 'assets/woodland spirit.png';
+    const url = `/api/v1/workspaces/${workspaceId}/assets/upload?path=${encodeURIComponent(destination)}`;
+    const headers = { origin: 'https://dashboard.example', cookie, 'x-csrf-token': session.json.csrfToken, 'content-type': 'image/png' };
+    const result = await send(url, { method: 'POST', headers, body: png });
+    expect(result.status).toBe(200);
+    expect(result.json.data).toEqual({
+      path: destination, sha256: createHash('sha256').update(png).digest('hex'), sizeBytes: png.length, format: 'png'
+    });
+    expect(result.text).not.toContain('do-not-leak');
+    const call = calls.find((entry) => entry.operation === 'asset_import');
+    expect(call?.principal).toEqual(principal);
+    expect(call?.input).toMatchObject({
+      workspaceId, path: destination, kind: 'png', expectedSha256: createHash('sha256').update(png).digest('hex'),
+      contentBase64: png.toString('base64')
+    });
+  });
+
+  it('requires origin, CSRF and supported media type for asset uploads', async () => {
+    const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR4nGP4DwQACfsD/fteaysAAAAASUVORK5CYII=', 'base64');
+    const url = `/api/v1/workspaces/${workspaceId}/assets/upload?path=assets%2Ftest.png`;
+    const session = await send('/api/v1/session');
+    const cookie = String(session.headers['set-cookie']?.[0]).split(';', 1)[0];
+    const headers = { origin: 'https://dashboard.example', cookie, 'x-csrf-token': session.json.csrfToken, 'content-type': 'image/png' };
+    expect((await send(url, { method: 'POST', headers: { ...headers, origin: '' }, body: png })).status).toBe(403);
+    expect((await send(url, { method: 'POST', headers: { ...headers, 'x-csrf-token': 'wrong' }, body: png })).status).toBe(403);
+    expect((await send(url, { method: 'POST', headers: { ...headers, 'content-type': 'text/plain' }, body: png })).status).toBe(415);
+    expect(calls.some((entry) => entry.operation === 'asset_import')).toBe(false);
+  });
+
   it('dispatches every read-only skills endpoint to its operation', async () => {
     const skillId = `sk_${'b'.repeat(24)}`;
     const skillSetId = `skset_${'c'.repeat(24)}`;

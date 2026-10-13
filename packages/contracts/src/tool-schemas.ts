@@ -525,6 +525,25 @@ const schemas = {
     atomic: z.boolean().default(true),
     idempotencyKey: IdempotencyKeySchema.optional()
   }),
+  asset_import: z.object({
+    ...workspace,
+    path: entryPath,
+    contentBase64: z.string().min(4).max(8_000_000).regex(/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/, 'canonical base64 required'),
+    kind: z.enum(['png', 'jpeg', 'webp', 'zip']),
+    expectedSha256: z.string().regex(/^[a-f0-9]{64}$/).optional(),
+    overwrite: z.boolean().default(false)
+  }),
+  image_inspect: z.object({
+    ...workspace,
+    path: relativePath,
+    includeBase64: z.boolean().default(true),
+    previewMaxEdge: z.number().int().min(128).max(2048).default(1024)
+  }),
+  image_compare: z.object({
+    ...workspace,
+    referencePath: relativePath,
+    candidatePath: relativePath
+  }),
   files_apply_patch: z.object({ ...workspace, path: relativePath, oldText: z.string().max(262_144), newText: z.string().max(262_144), expectedSha256: z.string().length(64).optional() }),
   files_delete: z.object({ ...workspace, path: entryPath, recursive: z.boolean().default(false), expectedSha256: z.string().length(64).optional() }),
   files_move: z.object({ ...workspace, source: entryPath, destination: entryPath, overwrite: z.boolean().default(false) }),
@@ -860,6 +879,7 @@ const titles: Record<RunnerOperation, string> = {
   workspace_open: 'Open workspace', workspace_list: 'List workspaces', workspace_status: 'Workspace status', workspace_capabilities: 'Workspace capabilities', workspace_close: 'Close workspace',
   workspace_lease_renew: 'Renew workspace lease', workspace_recover: 'Recover workspace state', workspace_context: 'Workspace context', workspace_set_active: 'Set active workspace',
   workspace_finalize: 'Finalize workspace commit and push',
+  asset_import: 'Import binary asset', image_inspect: 'Inspect image', image_compare: 'Compare images',
   files_list: 'List files', files_read: 'Read file', files_write: 'Write file', files_write_batch: 'Write batch files', files_apply_patch: 'Apply text patch', files_delete: 'Delete file or directory', files_move: 'Move file or directory', files_mkdir: 'Create directory', grep_search: 'Search workspace',
   symbols_search: 'Find symbol definitions', symbols_references: 'Find lexical symbol references',
   exec_run: 'Run command', shell_open: 'Open shell', shell_io: 'Use shell', shell_close: 'Close shell', tasks_list: 'List tasks', tasks_run: 'Run task', tasks_status: 'Task status', tasks_cancel: 'Cancel task',
@@ -897,6 +917,9 @@ const descriptions: Record<RunnerOperation, string> = {
   workspace_context: 'Read the active workspace ID, branch, lease time, Git identity, and repository overview.',
   workspace_set_active: 'Set the caller preferred active workspace when multiple workspaces exist.',
   workspace_finalize: 'Transactionally stage changes, run preflights, commit with default or explicit identity, and push to remote in one call.',
+  asset_import: 'Import a bounded PNG/JPEG/WebP/ZIP as base64 into a workspace after signature and hash validation.',
+  image_inspect: 'Inspect image geometry, format, hash and return bounded base64 for an external vision-capable client when requested.',
+  image_compare: 'Compare two images by dimensions and file digests; report whether they are byte-identical (not perceptual similarity).',
   files_list: 'List one workspace directory with bounded cursor pagination.',
   files_read: 'Read a bounded byte range from a workspace file with its size, SHA-256, and continuation cursor.',
   files_write: 'Atomically create or replace a workspace file, optionally guarded by its current SHA-256.',
@@ -983,7 +1006,7 @@ const descriptions: Record<RunnerOperation, string> = {
 
 const readOnly = new Set<RunnerOperation>([
   'workspace_list', 'workspace_status', 'workspace_capabilities', 'workspace_context',
-  'files_list', 'files_read', 'grep_search', 'symbols_search', 'symbols_references',
+  'files_list', 'files_read', 'image_inspect', 'image_compare', 'grep_search', 'symbols_search', 'symbols_references',
   'sessions_list', 'tasks_list', 'tasks_status', 'tasks_graph',
   'operation_status', 'operation_wait',
   'git_status', 'git_diff', 'git_log', 'git_identity_status',
@@ -994,7 +1017,7 @@ const readOnly = new Set<RunnerOperation>([
 ]);
 const destructive = new Set<RunnerOperation>([
   'workspace_close', 'workspace_recover', 'workspace_finalize',
-  'files_write', 'files_write_batch', 'files_apply_patch', 'files_delete', 'files_move',
+  'asset_import', 'files_write', 'files_write_batch', 'files_apply_patch', 'files_delete', 'files_move',
   'exec_run', 'shell_io', 'shell_close', 'sessions_io', 'sessions_close',
   'tasks_run', 'tasks_cancel', 'operation_cancel',
   'git_branch', 'git_checkout', 'git_pull', 'git_push', 'git_merge', 'git_rebase', 'git_identity_set',
@@ -1005,7 +1028,7 @@ const destructive = new Set<RunnerOperation>([
 ]);
 const idempotent = new Set<RunnerOperation>([
   'workspace_open', 'workspace_list', 'workspace_status', 'workspace_capabilities', 'workspace_close', 'workspace_lease_renew', 'workspace_context', 'workspace_set_active', 'workspace_finalize',
-  'files_list', 'files_read', 'files_write', 'files_write_batch', 'files_apply_patch', 'files_mkdir', 'grep_search', 'symbols_search', 'symbols_references',
+  'files_list', 'files_read', 'files_write', 'files_write_batch', 'asset_import', 'image_inspect', 'image_compare', 'files_apply_patch', 'files_mkdir', 'grep_search', 'symbols_search', 'symbols_references',
   'shell_open', 'shell_close', 'sessions_list', 'sessions_open', 'sessions_close',
   'tasks_list', 'tasks_run', 'tasks_status', 'tasks_cancel', 'tasks_graph',
   'operation_status', 'operation_cancel', 'operation_wait',

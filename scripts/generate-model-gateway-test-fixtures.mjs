@@ -23,7 +23,8 @@ const generated = spawnSync('openssl', [
   '-out', certificatePath
 ], { encoding: 'utf8', stdio: ['ignore', 'ignore', 'pipe'] });
 if (generated.status !== 0) {
-  throw new Error(`openssl could not generate test-only TLS fixtures: ${generated.stderr.trim()}`);
+  const detail = generated.error?.message ?? generated.stderr?.trim() ?? 'unknown OpenSSL failure';
+  throw new Error(`openssl could not generate test-only TLS fixtures: ${detail}`);
 }
 // The parent stays owner-only; mounted files must be readable by the image's non-root UID on Linux CI.
 await Promise.all([chmod(keyPath, 0o444), chmod(certificatePath, 0o444), chmod(credentialPath, 0o444)]);

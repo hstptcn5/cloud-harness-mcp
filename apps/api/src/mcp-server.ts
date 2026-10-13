@@ -16,6 +16,28 @@ import { formatToolResultText } from './mcp-response-text.js';
 import { registerSkillsExtension, supportsSkillsExtension } from './skills-extension.js';
 
 export function resultToMcp(result: ToolResult): CallToolResult {
+  // Image payloads are intentionally emitted as MCP image blocks, not enormous
+  // text/JSON fields. The model can visually inspect small images directly.
+  const data = result.data;
+  if (result.ok && data && typeof data === 'object' && !Array.isArray(data)) {
+    const record = data as Record<string, unknown>;
+    const raw = record.contentBase64;
+    const mime = record.mimeType;
+    if (typeof raw === 'string' && raw.length <= 700_000
+      && (mime === 'image/png' || mime === 'image/jpeg' || mime === 'image/webp')) {
+      const metadata = { ...record };
+      delete metadata.contentBase64;
+      const safeResult = { ...result, data: metadata };
+      return {
+        content: [
+          { type: 'text', text: formatToolResultText(safeResult) },
+          { type: 'image', data: raw, mimeType: mime }
+        ],
+        structuredContent: safeResult,
+        isError: false
+      };
+    }
+  }
   return {
     content: [{ type: 'text', text: formatToolResultText(result) }],
     structuredContent: result,

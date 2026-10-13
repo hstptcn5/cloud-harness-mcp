@@ -66,7 +66,7 @@ const activeStatus = new Set<WorkspaceRecord['status']>(['CREATING', 'ACTIVE', '
  */
 const countedStatus = new Set<WorkspaceRecord['status']>(COUNTED_WORKSPACE_STATUSES);
 const auditedFileMutations = new Set<RunnerOperation>([
-  'files_write', 'files_write_batch', 'files_apply_patch', 'files_delete', 'files_move', 'files_mkdir'
+  'asset_import', 'files_write', 'files_write_batch', 'files_apply_patch', 'files_delete', 'files_move', 'files_mkdir'
 ]);
 /**
  * Operator-provided skills mounted read-only at the worker's highest-precedence
@@ -4467,7 +4467,7 @@ function isMutationOperation(operation: RunnerOperation, validated: Record<strin
   if (operation === 'tasks_run') {
     return false;
   }
-  if (['files_write', 'files_write_batch', 'files_apply_patch', 'files_delete', 'files_move', 'files_mkdir',
+  if (['asset_import', 'files_write', 'files_write_batch', 'files_apply_patch', 'files_delete', 'files_move', 'files_mkdir',
        'git_checkout', 'git_add', 'git_commit', 'git_fetch', 'git_pull', 'git_merge', 'git_rebase', 'git_push',
        'workspace_finalize', 'worktrees_create', 'worktrees_remove', 'memories_write', 'memories_delete',
        'knowledge_create', 'knowledge_update', 'knowledge_delete', 'knowledge_link', 'knowledge_unlink',

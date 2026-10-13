@@ -10,8 +10,13 @@ RUN apt-get update \
     curl \
     git \
     jq \
+    imagemagick \
     patch \
     procps \
+    python3 \
+    python-is-python3 \
+    python3-jsonschema \
+    python3-yaml \
     ripgrep \
     sudo \
     tini \
@@ -22,6 +27,11 @@ RUN apt-get update \
   && apt-get update \
   && apt-get install -y --no-install-recommends gh \
   && rm -rf /var/lib/apt/lists/*
+
+# Repo-provided Python skills (such as Repo Steward) must validate state in
+# network-isolated workspaces without pip installs or privileged shell access.
+# Use Debian-managed packages, not a mutable network-installed Python runtime.
+RUN python -c 'import sys, yaml, jsonschema; assert sys.version_info >= (3, 11); print("python-skill-runtime-ready")'
 
 COPY --from=bun-source /usr/local/bin/bun /usr/local/bin/bun
 RUN ln -s /usr/local/bin/bun /usr/local/bin/bunx
@@ -62,6 +72,8 @@ RUN mkdir -p /workspace /opt/user-tools /var/cache/harness /tmp/cloud-harness-ho
   && chown -R 10001:10001 /workspace /opt/user-tools /var/cache/harness /tmp/cloud-harness-home
 
 COPY --chown=root:root worker/harness-worker.mjs /opt/harness/harness-worker.mjs
+COPY --chown=root:root worker/asset-vision.mjs /opt/harness/asset-vision.mjs
+COPY --chown=root:root worker/asset-preview.mjs /opt/harness/asset-preview.mjs
 COPY --chown=root:root worker/clone-helper.sh /opt/harness/clone-helper.sh
 COPY --chown=root:root worker/git-transfer-helper.sh /opt/harness/git-transfer-helper.sh
 COPY --chown=root:root worker/task-runner.sh /opt/harness/task-runner.sh
@@ -75,7 +87,12 @@ COPY --chown=root:root worker/bin/skillx /opt/harness/bin/skillx
 # ES modules. The dispatcher is installed as `npx` while the real npm entry point stays at
 # /usr/local/bin/npx, which is why delegation cannot resolve back to this file. The launchers stay
 # read-only to the unprivileged user that runs the workspace.
-RUN chmod 0555 /opt/harness/*.sh /opt/harness/*.mjs \
+# Checkout paths built on Windows can carry CRLF despite repository attributes.
+# Normalize only bundled text entrypoints before granting execute permissions.
+# Without this, Linux treats '#!/usr/bin/env bash\r' as an absent interpreter.
+RUN sed -i 's/\r$//' /opt/harness/*.sh /opt/harness/*.mjs /opt/harness/bin/* \
+  && ! grep -l "$(printf '\r')" /opt/harness/*.sh /opt/harness/*.mjs /opt/harness/bin/* \
+  && chmod 0555 /opt/harness/*.sh /opt/harness/*.mjs \
   && printf '%s\n' '{"type":"module"}' > /opt/harness/package.json \
   && chmod 0644 /opt/harness/package.json \
   && chmod 0555 /opt/harness/bin/*

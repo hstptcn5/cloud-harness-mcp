@@ -8,6 +8,7 @@ import { createDashboardAssetsRouter } from './dashboard-assets.js';
 import { createDashboardRouter } from './dashboard-router.js';
 import { bindWorkspace, createCloudHarnessServerFactory, createWorkspaceBoundServerFactory } from './mcp-server.js';
 import { createMcpGateway } from './mcp-gateway/index.js';
+import { mcpAssetBodyParser } from './mcp-asset-body.js';
 import type { McpGatewayService } from './mcp-gateway/service.js';
 import { preAuthRequestLimits, principalRequestLimits, requestSecurity } from './request-security.js';
 import { RunnerClient } from './runner-client.js';
@@ -44,7 +45,7 @@ export function createApiApp(config: ApiConfig, overrides: ApiAppOverrides = {})
     response.status(ready ? 200 : 503).json({ status: ready ? 'ready' : 'unavailable' });
   });
   app.use('/mcp', requestSecurity(config), preAuthRequestLimits(), bearerAuth(config), principalRequestLimits());
-  app.use('/mcp', express.json({ limit: config.maxBodyBytes, strict: true }));
+  app.use('/mcp', ...mcpAssetBodyParser(config.maxBodyBytes));
   app.all('/mcp', async (request: Request, response: Response) => {
     if (request.method === 'POST' && !request.is('application/json')) {
       response.status(415).json({ error: 'unsupported_media_type' });
@@ -85,7 +86,7 @@ export function createApiApp(config: ApiConfig, overrides: ApiAppOverrides = {})
   });
   if (config.authMode === 'cloudflare-access' && config.apiKeyAuthEnabled) {
     app.use('/mcp-api-key', requestSecurity(config), preAuthRequestLimits(), apiKeyGatewayAuth(config, runnerClient), principalRequestLimits());
-    app.use('/mcp-api-key', express.json({ limit: config.maxBodyBytes, strict: true }));
+    app.use('/mcp-api-key', ...mcpAssetBodyParser(config.maxBodyBytes));
     app.all('/mcp-api-key', async (request: Request, response: Response) => {
       if (request.method === 'POST' && !request.is('application/json')) {
         response.status(415).json({ error: 'unsupported_media_type' });

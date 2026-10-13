@@ -3,7 +3,7 @@ import express, { type NextFunction, type Response, type Router } from 'express'
 import { API_KEY_MAX_EXPIRY_DAYS, ApiKeyManagementResponseSchema, MCP_GATEWAY_AUTHENTICATED_SSE_MESSAGE, type ApiConfig, type ApiKeyManagementOperation, type MetadataRunnerOperation, type RunnerPrincipalSelector } from '@cloud-harness/contracts';
 import { z } from 'zod';
 import { sendRunnerResponse } from './dashboard-response.js';
-import { requireArchiveMediaType, SKILL_ARCHIVE_MEDIA_TYPES, SKILL_ARCHIVE_PATH } from './dashboard-security.js';
+import { requireArchiveMediaType, SKILL_ARCHIVE_MEDIA_TYPES, SKILL_ARCHIVE_PATH, WORKSPACE_ASSET_UPLOAD_PATH } from './dashboard-security.js';
 import type { DashboardRequest, DashboardRunnerClient } from './dashboard-types.js';
 import { validateGatewayEndpoint } from './mcp-gateway/url-policy.js';
 import type { McpGatewayService } from './mcp-gateway/service.js';
@@ -87,6 +87,29 @@ export function registerDashboardControlRoutes(
     archiveBase64: Buffer.isBuffer(request.body) ? request.body.toString('base64') : '',
     expectedGeneration: 0
   })));
+  // Explicit user-supplied bytes: same-origin + authenticated dashboard session
+  // + CSRF verification in createDashboardRouter. Never downloads arbitrary URLs.
+  const assetMediaTypes = ['image/png', 'image/jpeg', 'image/webp', ...SKILL_ARCHIVE_MEDIA_TYPES];
+  router.post(WORKSPACE_ASSET_UPLOAD_PATH, (request, response, next) => {
+    if (!request.is(assetMediaTypes)) { response.status(415).json({ error: 'unsupported_media_type' }); return; }
+    next();
+  }, express.raw({ type: assetMediaTypes, limit: 6_000_000 }), async (request: DashboardRequest, response: Response, next: NextFunction): Promise<void> => {
+    try {
+      const selected = principal(request, response);
+      if (!selected) return;
+      if (!Buffer.isBuffer(request.body) || !request.body.length) { response.status(400).json({ error: 'empty_asset' }); return; }
+      const workspaceId = internalId('ws').parse(request.params.workspaceId);
+      const path = z.string().min(1).max(1024).parse(request.query.path);
+      const kind = request.is('image/png') ? 'png'
+        : request.is('image/jpeg') ? 'jpeg'
+        : request.is('image/webp') ? 'webp' : 'zip';
+      const sha256 = createHash('sha256').update(request.body).digest('hex');
+      const result = await runner.call('asset_import', { workspaceId, path, kind, contentBase64: request.body.toString('base64'), expectedSha256: sha256 }, selected);
+      if (!result.ok) { response.status(result.error?.code === 'INVALID_INPUT' ? 400 : result.error?.code === 'CONFLICT' ? 409 : 502).json({ error: (result.error?.code ?? 'UNAVAILABLE').toLowerCase(), message: 'The workspace could not accept this asset.' }); return; }
+      const data = result.data as { path?: string; sha256?: string; sizeBytes?: number; format?: string } | undefined;
+      response.json({ data: { path: data?.path, sha256: data?.sha256, sizeBytes: data?.sizeBytes, format: data?.format } });
+    } catch (error) { next(error); }
+  });
   router.patch('/api/v1/skills/:skillId', endpoint('skill_update', (request) => ({ skillId: internalId('sk').parse(request.params.skillId), ...(request.body && typeof request.body === 'object' ? request.body : {}) })));
   router.post('/api/v1/skills/:skillId/archive', endpoint('skill_archive', (request) => ({ skillId: internalId('sk').parse(request.params.skillId), ...(request.body && typeof request.body === 'object' ? request.body : {}) })));
   router.post('/api/v1/skills/:skillId/restore', endpoint('skill_restore', (request) => ({ skillId: internalId('sk').parse(request.params.skillId), ...(request.body && typeof request.body === 'object' ? request.body : {}) })));

@@ -1,4 +1,4 @@
-import express, { type Express, type Request, type Response } from 'express';
+import express, { type Express, type NextFunction, type Request, type Response } from 'express';
 import pino from 'pino';
 import { ZodError } from 'zod';
 import { HarnessError, RunnerRequestSchema, type RunnerConfig } from '@cloud-harness/contracts';
@@ -13,6 +13,9 @@ const logger = pino({ level: process.env.LOG_LEVEL ?? 'info', redact: ['req.head
 
 /** Holds the base64 form of an 8 MiB skills archive plus the operation envelope around it. */
 const DASHBOARD_OPERATION_BODY_LIMIT = '12mb';
+/** Holds up to 6 MB of image/ZIP bytes encoded as base64 plus the runner envelope. */
+const ASSET_OPERATION_BODY_LIMIT = '9mb';
+const STANDARD_OPERATION_BODY_BYTES = 1_048_576;
 
 export function createRunnerApp(config: RunnerConfig, service: WorkspaceService, controls?: DashboardControlService, apiKeys?: ApiKeyService): Express {
   const app = express();
@@ -22,6 +25,23 @@ export function createRunnerApp(config: RunnerConfig, service: WorkspaceService,
   // larger parse is never spent on an unauthenticated caller, and the parser marks the body as read so the
   // default one below skips it.
   app.use('/v1/internal/dashboard-operations', serviceAuth(config.serviceToken), express.json({ limit: DASHBOARD_OPERATION_BODY_LIMIT, strict: true }));
+  // Asset imports exceed the default 1 MiB JSON limit after base64 encoding.
+  // Authenticate BEFORE parsing the larger body, then retain the 1 MiB
+  // restriction for every other operation (including chunked requests).
+  app.use('/v1/operations', serviceAuth(config.serviceToken),
+    express.json({
+      limit: ASSET_OPERATION_BODY_LIMIT, strict: true,
+      verify: (request, _response, buffer) => {
+        (request as Request & { parsedBodyBytes?: number }).parsedBodyBytes = buffer.length;
+      }
+    }),
+    (request: Request, response: Response, next: NextFunction) => {
+      if (request.body?.operation !== 'asset_import' && ((request as Request & { parsedBodyBytes?: number }).parsedBodyBytes ?? 0) > STANDARD_OPERATION_BODY_BYTES) {
+        response.status(413).json({ error: 'operation_body_too_large' });
+        return;
+      }
+      next();
+    });
   app.use(express.json({ limit: '1mb', strict: true }));
   app.get('/healthz', (_request, response) => response.json({ status: 'ok' }));
   app.post('/v1/operations', serviceAuth(config.serviceToken), async (request: Request, response: Response) => {

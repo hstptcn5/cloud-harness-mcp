@@ -107,9 +107,9 @@ export function createDashboardRouter(config: ApiConfig, runner: DashboardRunner
   const sessions = createDashboardSessions();
   router.use(dashboardSecurity(config));
   router.use(express.json({ limit: Math.min(config.maxBodyBytes, 1_048_576), strict: true }));
-  // The skills archive is the one binary upload, and its route validates its own media type.
+  // Binary upload routes enforce independent media type and byte caps.
   router.use((request, response, next) => {
-    if (request.method === 'POST' && request.path === SKILL_ARCHIVE_PATH) next();
+    if (request.method === 'POST' && (request.path === SKILL_ARCHIVE_PATH || /^\/api\/v1\/workspaces\/ws_[A-Za-z0-9_-]{20,80}\/assets\/upload$/.test(request.path))) next();
     else requireJson(request, response, next);
   });
   router.get('/api/v1/session', (request: DashboardRequest, response) => sessions.bootstrap(request, response));

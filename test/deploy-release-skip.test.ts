@@ -1,7 +1,8 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
-const workflow = readFileSync('.github/workflows/deploy.yml', 'utf8');
+// Git for Windows can check out workflow YAML with CRLF line endings.
+const workflow = readFileSync('.github/workflows/deploy.yml', 'utf8').replace(/\r\n/g, '\n');
 
 function jobSection(name: string): string {
   const start = workflow.indexOf(`\n  ${name}:\n`);

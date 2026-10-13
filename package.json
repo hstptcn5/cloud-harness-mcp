@@ -22,7 +22,8 @@
     "lint": "eslint .",
     "typecheck": "npm run build -w @cloud-harness/contracts && npm run typecheck -w @cloud-harness/agent-runtime && npm run typecheck -w @cloud-harness/model-gateway && npm run typecheck -w @cloud-harness/api && npm run typecheck -w @cloud-harness/runner && npm run typecheck -w @cloud-harness/api-key-gateway",
     "pretest": "npm run build -w @cloud-harness/contracts && npm run build -w @cloud-harness/api",
-    "test": "vitest run --exclude '**/*.docker.test.ts' --no-file-parallelism",
+    "test": "vitest run --exclude '**/*.docker.test.ts' --exclude 'worker/test/**/*.test.mjs' --no-file-parallelism",
+    "test:asset": "node --test worker/test/asset*.test.mjs",
     "pretest:unit": "npm run build -w @cloud-harness/contracts",
     "test:unit": "vitest run packages apps --exclude '**/*.docker.test.ts'",
     "pretest:integration": "npm run build -w @cloud-harness/contracts && npm run build -w @cloud-harness/api",
@@ -52,7 +53,7 @@
     "release:dry-run": "semantic-release --dry-run --no-ci",
     "verify:production": "node scripts/verify-production.mjs",
     "verify:compose": "node scripts/verify-compose-boundaries.mjs",
-    "verify": "npm run plugin:check && npm run lint && npm run typecheck && npm test && npm run build",
+    "verify": "npm run plugin:check && npm run test:asset && npm run lint && npm run typecheck && npm test && npm run build",
     "verify:typesafe": "node scripts/verify-typesafe.mjs"
   },
   "devDependencies": {

@@ -44,6 +44,8 @@ export function requireJson(request: Request, response: Response, next: NextFunc
 
 /** The one dashboard route that takes a binary body; it is exempt from the router-wide JSON rule. */
 export const SKILL_ARCHIVE_PATH = '/api/v1/skill-archives';
+/** Browser upload of an owner-supplied image or ZIP into a pre-opened workspace. */
+export const WORKSPACE_ASSET_UPLOAD_PATH = '/api/v1/workspaces/:workspaceId/assets/upload';
 /** Media types a browser or CLI legitimately labels a zip with. */
 export const SKILL_ARCHIVE_MEDIA_TYPES = ['application/zip', 'application/x-zip-compressed', 'application/octet-stream'];
 
