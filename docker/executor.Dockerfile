@@ -13,6 +13,10 @@ RUN apt-get update \
     imagemagick \
     patch \
     procps \
+    python3 \
+    python-is-python3 \
+    python3-jsonschema \
+    python3-yaml \
     ripgrep \
     sudo \
     tini \
@@ -23,6 +27,11 @@ RUN apt-get update \
   && apt-get update \
   && apt-get install -y --no-install-recommends gh \
   && rm -rf /var/lib/apt/lists/*
+
+# Repo-provided Python skills (such as Repo Steward) must validate state in
+# network-isolated workspaces without pip installs or privileged shell access.
+# Use Debian-managed packages, not a mutable network-installed Python runtime.
+RUN python -c 'import sys, yaml, jsonschema; assert sys.version_info >= (3, 11); print("python-skill-runtime-ready")'
 
 COPY --from=bun-source /usr/local/bin/bun /usr/local/bin/bun
 RUN ln -s /usr/local/bin/bun /usr/local/bin/bunx
