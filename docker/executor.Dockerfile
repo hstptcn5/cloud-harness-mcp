@@ -78,7 +78,11 @@ COPY --chown=root:root worker/bin/skillx /opt/harness/bin/skillx
 # ES modules. The dispatcher is installed as `npx` while the real npm entry point stays at
 # /usr/local/bin/npx, which is why delegation cannot resolve back to this file. The launchers stay
 # read-only to the unprivileged user that runs the workspace.
-RUN chmod 0555 /opt/harness/*.sh /opt/harness/*.mjs \
+# Checkout paths built on Windows can carry CRLF despite repository attributes.
+# Normalize only bundled text entrypoints before granting execute permissions.
+# Without this, Linux treats '#!/usr/bin/env bash\r' as an absent interpreter.
+RUN sed -i 's/\r$//' /opt/harness/*.sh /opt/harness/*.mjs /opt/harness/bin/* \
+  && chmod 0555 /opt/harness/*.sh /opt/harness/*.mjs \
   && printf '%s\n' '{"type":"module"}' > /opt/harness/package.json \
   && chmod 0644 /opt/harness/package.json \
   && chmod 0555 /opt/harness/bin/*
