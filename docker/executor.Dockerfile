@@ -82,6 +82,7 @@ COPY --chown=root:root worker/bin/skillx /opt/harness/bin/skillx
 # Normalize only bundled text entrypoints before granting execute permissions.
 # Without this, Linux treats '#!/usr/bin/env bash\r' as an absent interpreter.
 RUN sed -i 's/\r$//' /opt/harness/*.sh /opt/harness/*.mjs /opt/harness/bin/* \
+  && ! grep -l "$(printf '\r')" /opt/harness/*.sh /opt/harness/*.mjs /opt/harness/bin/* \
   && chmod 0555 /opt/harness/*.sh /opt/harness/*.mjs \
   && printf '%s\n' '{"type":"module"}' > /opt/harness/package.json \
   && chmod 0644 /opt/harness/package.json \
