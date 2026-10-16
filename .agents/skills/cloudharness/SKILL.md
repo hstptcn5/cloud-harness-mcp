@@ -162,6 +162,9 @@ Details: [Repository automation](references/repository-automation.md#skills).
 | Durable repository note | `memories_*` | never store credentials or personal data |
 | Retain build output / snapshot | `artifacts_snapshot` | unmetered workspace disk retention |
 
+## ChatGPT Image source handoff via Dashboard
+When a user has approved a ChatGPT Image asset, remember that ChatGPT conversation file handles are NOT CloudHarness file paths. The owner-authenticated CloudHarness Dashboard Files tab supports an explicit image upload, plus a user-initiated Ctrl+V/drag-drop staging workflow; **neither is an automatic connector fetch**. A copied image may be re-encoded by the browser, so use the original PNG file upload and verify SHA-256 for exact provenance. Only run `asset_import` or Orion after real source bytes exist in the workspace. See [human source handoff](../../../docs/chatgpt-image-dashboard-handoff.md).
+
 ## Mandatory safety rules
 
 - Never place a bearer token, private key, credential-bearing URL, owner ID,

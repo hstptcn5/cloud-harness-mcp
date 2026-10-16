@@ -809,6 +809,9 @@ nav[aria-label="Breadcrumb"] > * + *::before { content: "/"; margin-inline-end: 
 .stack-form > p { margin: 0; color: var(--ink-muted); font-size: var(--text-13); }
 .stack-form > button[type="submit"] { justify-self: start; }
 .inline-form { align-items: end; }
+.asset-paste-zone { margin-block: var(--space-3); border: 1px dashed var(--line-strong); border-radius: var(--radius-lg); padding: var(--space-4); background: var(--surface-raised); outline-offset: 3px; }
+.asset-paste-zone:focus-visible { outline: 2px solid var(--hud-cyan); }
+.asset-paste-zone p { margin-block: var(--space-2) 0; color: var(--ink-muted); font-size: var(--text-13); }
 .form-status, .status-message { min-height: 1.25rem; margin: 0; color: var(--ink-muted); font-size: var(--text-13); }
 .form-status:empty { min-height: 0; }
 .form-status[data-save-state="error"] { color: var(--danger); }
