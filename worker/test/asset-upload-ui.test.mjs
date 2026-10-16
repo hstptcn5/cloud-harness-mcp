@@ -26,3 +26,21 @@ test('upload handler sends raw bytes through authenticated dashboard API', () =>
   assert.ok(script.includes("/assets/upload?path="));
   assert.ok(!script.includes('fetch(selected.name)'));
 });
+
+test('ChatGPT clipboard handoff requires a focused paste and explicit Upload click', () => {
+  const html = renderFileList('ws_' + 'a'.repeat(24), {path: '.', entries: []});
+  for (const item of ['id="asset-paste-zone"', 'tabindex="0"', 'Ctrl+V',
+    'id="asset-paste-selection"', 'Clipboard images may be re-encoded', 'click Upload file']) {
+    assert.ok(html.includes(item), item);
+  }
+  const script = readFileSync(new URL('../../apps/api/dashboard/dashboard.js', import.meta.url), 'utf8');
+  for (const item of ["pasteZone?.addEventListener('paste'", "pasteZone?.addEventListener('drop'",
+    "pasteZone?.addEventListener('dragover'", "event.clipboardData?.files", "event.dataTransfer?.files",
+    "stageAsset(image, 'clipboard')", "assetForm?.addEventListener('submit'"]) {
+    assert.ok(script.includes(item), item);
+  }
+  assert.ok(script.includes("await globalThis.crypto.subtle.digest('SHA-256', body)"));
+  assert.ok(script.includes("remoteSha !== localSha"));
+  assert.ok(script.includes("do not claim original ChatGPT SHA-256"));
+  assert.ok(!script.includes("navigator.clipboard.read("));
+});

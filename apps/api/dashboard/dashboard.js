@@ -3512,22 +3512,52 @@ export function initializeDashboard() {
     const assetFile = document.querySelector('#asset-upload-file');
     const assetPath = document.querySelector('#asset-upload-path');
     const assetStatus = document.querySelector('#asset-upload-status');
-    assetFile?.addEventListener('change', () => {
-      const selected = assetFile.files?.[0];
-      if (!selected || !assetPath) return;
+    const pasteZone = document.querySelector('#asset-paste-zone');
+    const pasteSelection = document.querySelector('#asset-paste-selection');
+    // The browser clipboard can re-encode an image. Preserve the exact selected bytes
+    // until the explicit Upload click, but never claim they match a ChatGPT master.
+    let stagedAsset = null;
+    let stagedOrigin = 'file';
+    const stageAsset = (file, origin) => {
+      if (!file || !assetPath) return;
+      stagedAsset = file;
+      stagedOrigin = origin;
       const directory = assetForm?.dataset.directory ?? '.';
-      // The browser supplies only the basename; the user can still edit the target.
-      const filename = selected.name.split(/[\\/]/).at(-1);
-      assetPath.value = directory === '.' ? filename : `${directory}/${filename}`;
-      if (assetStatus) assetStatus.textContent = '';
+      const extension = file.type === 'image/jpeg' ? 'jpg' : file.type === 'image/webp' ? 'webp' : 'png';
+      const basename = origin === 'clipboard'
+        ? `chatgpt-paste-${Date.now()}.${extension}`
+        : file.name.split(/[\\/]/).at(-1);
+      assetPath.value = directory === '.' ? basename : `${directory}/${basename}`;
+      if (pasteSelection) pasteSelection.textContent = origin === 'clipboard'
+        ? `Staged pasted image (${file.size} bytes, ${file.type}). Click Upload file to confirm.`
+        : 'No pasted image selected.';
+      if (assetStatus) assetStatus.textContent = origin === 'clipboard'
+        ? 'Clipboard image may differ from the original ChatGPT PNG. Use file picker to preserve exact original bytes.'
+        : '';
+    };
+    assetFile?.addEventListener('change', () => stageAsset(assetFile.files?.[0], 'file'));
+    const choosePastedImage = (files) => Array.from(files ?? [])
+      .find((item) => ['image/png', 'image/jpeg', 'image/webp'].includes(item.type));
+    pasteZone?.addEventListener('paste', (event) => {
+      const image = choosePastedImage(event.clipboardData?.files);
+      if (!image) { if (assetStatus) assetStatus.textContent = 'Clipboard does not contain a supported image.'; return; }
+      event.preventDefault();
+      stageAsset(image, 'clipboard');
+    });
+    pasteZone?.addEventListener('dragover', (event) => { event.preventDefault(); });
+    pasteZone?.addEventListener('drop', (event) => {
+      event.preventDefault();
+      const image = choosePastedImage(event.dataTransfer?.files);
+      if (!image) { if (assetStatus) assetStatus.textContent = 'Drop a PNG, JPEG or WebP image.'; return; }
+      stageAsset(image, 'clipboard');
     });
     assetForm?.addEventListener('submit', async (event) => {
       event.preventDefault();
-      const selected = assetFile?.files?.[0];
+      const selected = stagedAsset;
       const destination = String(assetPath?.value ?? '').trim();
       const extension = selected?.name.split('.').at(-1)?.toLowerCase();
-      const mimeType = extension ? WORKSPACE_ASSET_TYPES[extension] : undefined;
-      if (!selected || !mimeType || !destination) {
+      const mimeType = stagedOrigin === 'clipboard' ? selected?.type : (extension ? WORKSPACE_ASSET_TYPES[extension] : undefined);
+      if (!selected || !mimeType || !destination || !Object.values(WORKSPACE_ASSET_TYPES).includes(mimeType)) {
         if (assetStatus) assetStatus.textContent = 'Choose a PNG, JPEG, WebP or ZIP and a destination path.';
         return;
       }
@@ -3539,10 +3569,17 @@ export function initializeDashboard() {
       button.disabled = true;
       if (assetStatus) assetStatus.textContent = 'Uploading file…';
       try {
-        await api(`/workspaces/${encodeURIComponent(id)}/assets/upload?path=${encodeURIComponent(destination)}`, {
-          method: 'POST', headers: { 'content-type': mimeType }, body: await selected.arrayBuffer()
+        const body = await selected.arrayBuffer();
+        const localSha = globalThis.crypto?.subtle
+          ? Array.from(new Uint8Array(await globalThis.crypto.subtle.digest('SHA-256', body)))
+            .map((byte) => byte.toString(16).padStart(2, '0')).join('')
+          : null;
+        const uploaded = await api(`/workspaces/${encodeURIComponent(id)}/assets/upload?path=${encodeURIComponent(destination)}`, {
+          method: 'POST', headers: { 'content-type': mimeType }, body
         });
-        announce(`Uploaded ${destination} to the workspace.`);
+        const remoteSha = uploaded?.data?.sha256;
+        if (localSha && remoteSha !== localSha) throw new Error('Upload SHA-256 mismatch. Do not process this asset.');
+        announce(`Uploaded ${destination} (SHA-256: ${remoteSha ?? 'unavailable'}).${stagedOrigin === 'clipboard' ? ' Clipboard image may be re-encoded; do not claim original ChatGPT SHA-256.' : ''}`);
         await loadFiles(id);
       } catch (error) {
         if (assetStatus) assetStatus.textContent = error.message ?? 'Upload failed.';
