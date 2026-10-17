@@ -162,6 +162,13 @@ Details: [Repository automation](references/repository-automation.md#skills).
 | Durable repository note | `memories_*` | never store credentials or personal data |
 | Retain build output / snapshot | `artifacts_snapshot` | unmetered workspace disk retention |
 
+## ChatGPT Image source handoff: fileParams pilot
+When a user approves a ChatGPT Image source, do not treat a ChatGPT file ID or /mnt/data path as a CloudHarness workspace path. After CloudHarness PR #4 has been deployed and the connector tool list refreshed, prefer the MCP tool **orion_import_chat_file** with **one actual attached image** in its **source_image** fileParams field, a workspaceId, a relative destination, and an optional independently captured original SHA-256. This tool delegates to owner-bound **asset_import**; verify with **image_inspect** before Orion Source Gate.
+
+The fileParams tool is available ONLY when advertised by the live connector and supported by the ChatGPT host. Source code or a draft PR alone does not make it available. Never invent a download_url or construct one from a file_id; a matching SHA is not an authenticated creator attestation. Read the [bridge pilot](../../../docs/orion/chatgpt-fileparams-bridge.md).
+
+If the tool is missing or ChatGPT cannot pass a real generated-image attachment, report the precise blocker. Use owner-authenticated **Dashboard Files upload** as fallback; uploading the original PNG file is preferable to Ctrl+V since clipboard may re-encode. Read the [human source handoff](../../../docs/chatgpt-image-dashboard-handoff.md). Do not execute Orion as if the original bytes are present when they are not.
+
 ## Mandatory safety rules
 
 - Never place a bearer token, private key, credential-bearing URL, owner ID,
