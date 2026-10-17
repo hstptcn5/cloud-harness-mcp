@@ -14,6 +14,7 @@ import { RunnerClient } from './runner-client.js';
 import type { OperationBackend, SkillsExtensionOperation } from './operation-backend.js';
 import { formatToolResultText } from './mcp-response-text.js';
 import { registerSkillsExtension, supportsSkillsExtension } from './skills-extension.js';
+import { registerChatFileImportTool } from './chat-file-import-tool.js';
 
 export function resultToMcp(result: ToolResult): CallToolResult {
   // Image payloads are intentionally emitted as MCP image blocks, not enormous
@@ -56,6 +57,8 @@ export class RunnerOperationBackend implements OperationBackend {
     private readonly principal?: RunnerPrincipalSelector,
     private readonly skillsWorkspaceId?: WorkspaceId
   ) {}
+
+  hasPrincipal(): boolean { return this.principal !== undefined; }
 
   async call(operation: RunnerOperation, input: Record<string, unknown>, signal?: AbortSignal): Promise<RunnerResponse> {
     if (!this.principal) return unauthenticated();
@@ -125,6 +128,7 @@ export function createCloudHarnessServer(
       }
     );
   }
+  registerChatFileImportTool(server, backend, { resultToMcp }, !(backend instanceof RunnerOperationBackend) || backend.hasPrincipal());
   if (supportsSkillsExtension(backend)) registerSkillsExtension(server, backend);
   return server;
 }

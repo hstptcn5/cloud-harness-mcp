@@ -64,7 +64,7 @@ describe('MCP stdio real binary interoperability', () => {
 
     // List tools
     const tools = await client.listTools();
-    expect(tools.tools).toHaveLength(TOOL_SPECS.length);
+    expect(tools.tools).toHaveLength(TOOL_SPECS.length + 1);
 
     const closeTool = tools.tools.find((t) => t.name === 'workspace_close');
     expect(closeTool?.annotations?.destructiveHint).toBe(true);
@@ -159,7 +159,7 @@ describe('MCP stdio real binary interoperability', () => {
     await client.connect(transport);
 
     const tools = await client.listTools();
-    expect(tools.tools).toHaveLength(TOOL_SPECS.length);
+    expect(tools.tools).toHaveLength(TOOL_SPECS.length + 1);
 
     const listResult = await client.callTool({ name: 'workspace_list', arguments: {} });
     expect(listResult.isError).toBe(false);

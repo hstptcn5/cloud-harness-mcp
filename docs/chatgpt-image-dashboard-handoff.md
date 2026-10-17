@@ -1,6 +1,8 @@
-# ChatGPT image → CloudHarness workspace: authorized browser handoff
+# ChatGPT image → CloudHarness workspace: authorized browser handoff (fallback)
 
 ## Scope
+This is the fallback route. After an MCP tool with fileParams is deployed and actually advertised to ChatGPT, prefer the [bridge pilot](orion/chatgpt-fileparams-bridge.md) when an authorized file attachment is available. A draft PR alone does not activate it.
+
 The ChatGPT conversation and CloudHarness workspace are separate security principals and filesystems. **CloudHarness cannot read ChatGPT file IDs, `sediment://` pointers, local model container `/mnt/data`, nor arbitrary ChatGPT image URLs.** This feature does not change that boundary and does not secretly pull user data from ChatGPT.
 
 CloudHarness already implements an owner-authenticated, same-origin, CSRF-protected Dashboard binary upload endpoint (`POST /dashboard/api/v1/workspaces/:workspaceId/assets/upload?path=...`), which delegates to `asset_import` and validates image signature, size and SHA-256. The Files UI now lets an authorized human supply image bytes by **Ctrl+V** or **drag and drop**, as an alternative to selecting a local file.

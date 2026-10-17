@@ -159,7 +159,7 @@ describe('Skills over MCP extension over streamable HTTP', () => {
     expect(JSON.stringify(discover)).not.toContain('directoryRead');
 
     const tools = (await client.listTools()).tools;
-    expect(tools.map((tool) => tool.name)).toEqual(TOOL_SPECS.map((spec) => spec.name));
+    expect(tools.map((tool) => tool.name)).toEqual([...TOOL_SPECS.map((spec) => spec.name), 'orion_import_chat_file']);
     expect(await protocolErrorCode(client.request({ method: 'resources/directory/read', params: { uri: skillUri } } as never, z.unknown()))).toBe(-32601);
     await client.close();
   });
@@ -246,7 +246,7 @@ describe('Skills over MCP extension over streamable HTTP', () => {
 
   it('keeps legacy clients working', async () => {
     const legacy = await connect('legacy');
-    expect((await legacy.listTools()).tools).toHaveLength(TOOL_SPECS.length);
+    expect((await legacy.listTools()).tools).toHaveLength(TOOL_SPECS.length + 1);
     const result = await legacy.callTool({ name: 'workspace_list', arguments: {} });
     expect(result.isError).toBe(false);
     expect((await legacy.listResources()).resources).toEqual([]);

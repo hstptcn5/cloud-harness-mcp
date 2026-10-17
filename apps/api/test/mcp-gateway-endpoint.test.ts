@@ -802,7 +802,7 @@ describe('/mcp regression guard', () => {
         })
       );
       const listed = await client.listTools();
-      expect(listed.tools).toHaveLength(TOOL_SPECS.length);
+      expect(listed.tools).toHaveLength(TOOL_SPECS.length + 1);
       expect(state.calls.filter((call) => call.operation.startsWith('mcp_gateway'))).toHaveLength(0);
     } finally {
       await client.close().catch(() => undefined);
