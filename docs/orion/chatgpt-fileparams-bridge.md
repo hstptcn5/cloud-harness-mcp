@@ -25,7 +25,7 @@ This tool does not generate art and does not automatically approve source images
 
 ## Tests
 
-- Node 24: **node --test apps/api/test/chat-file-download.node.test.mjs**
+- Node 24: **node --test worker/test/asset-chat-file-download.test.mjs**
 - In a workspace with npm dependencies: **npx vitest run apps/api/test/chat-file-import-tool.test.ts**
 - Full repo: **npm run typecheck && npm test && npm run build**
 - Live acceptance: a real standalone ChatGPT Image PNG transferred by fileParams; source and CloudHarness SHA-256 identical; Orion Source Gate returns grounded report (not a fake technical PASS).

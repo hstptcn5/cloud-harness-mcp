@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import {
   allowedFileUrl, imageKind, downloadChatImage, ChatFileImportError, MAX_CHAT_IMAGE_BYTES
-} from '../src/chat-file-download.ts';
+} from '../../apps/api/src/chat-file-download.ts';
 
 const file = { file_id: 'file_0123456789abcdef', download_url: 'https://files.oaiusercontent.com/temporary?token=secret', mime_type: 'image/png', file_name: 'ember.png' };
 const png = Buffer.from([137,80,78,71,13,10,26,10,0,0,0,0,73,72,68,82]);
