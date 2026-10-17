@@ -114,7 +114,7 @@ describe('Skills over MCP extension', () => {
     const { client: runner } = fakeRunner();
     const client = await connect(runner);
     const tools = (await client.listTools()).tools;
-    expect(tools.map((tool) => tool.name)).toEqual(TOOL_SPECS.map((spec) => spec.name));
+    expect(tools.map((tool) => tool.name)).toEqual([...TOOL_SPECS.map((spec) => spec.name), 'orion_import_chat_file']);
     expect(tools.some((tool) => tool.name.startsWith('skills/'))).toBe(false);
   });
 

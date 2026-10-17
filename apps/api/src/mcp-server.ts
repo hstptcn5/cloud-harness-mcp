@@ -15,6 +15,7 @@ import { RunnerClient } from './runner-client.js';
 import type { OperationBackend, SkillsExtensionOperation } from './operation-backend.js';
 import { formatToolResultText } from './mcp-response-text.js';
 import { registerSkillsExtension, supportsSkillsExtension } from './skills-extension.js';
+import { registerChatFileImportTool } from './chat-file-import-tool.js';
 import { registerEventsExtension, type EventsBackend } from './events/events-extension.js';
 import type { WebhookSender } from './events/webhook-sender.js';
 
@@ -56,6 +57,7 @@ export class RunnerOperationBackend implements OperationBackend {
   }
 
   readonly events?: EventsBackend;
+  hasPrincipal(): boolean { return this.principal !== undefined; }
 
   async call(operation: RunnerOperation, input: Record<string, unknown>, signal?: AbortSignal): Promise<RunnerResponse> {
     if (!this.principal) return unauthenticated();
@@ -125,6 +127,7 @@ export function createCloudHarnessServer(
       }
     );
   }
+  registerChatFileImportTool(server, backend, { resultToMcp }, !(backend instanceof RunnerOperationBackend) || backend.hasPrincipal());
   if (supportsSkillsExtension(backend)) registerSkillsExtension(server, backend);
   if (backend.events) registerEventsExtension(server, backend.events);
   return server;
