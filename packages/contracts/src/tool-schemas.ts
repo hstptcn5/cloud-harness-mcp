@@ -783,7 +783,7 @@ const schemas = {
   }),
   files_list: z.object({ ...workspace, path: relativePath.default('.'), ...pagination }),
   files_read: z.object({ ...workspace, path: relativePath, offset: z.number().int().min(0).default(0), limit: z.number().int().min(1).max(1_048_576).default(65_536), cursor: z.string().max(256).optional(), readAll: z.boolean().optional() }),
-  files_write: z.object({ ...workspace, path: relativePath, content: z.string().max(1_048_576), expectedSha256: z.string().length(64).optional() }),
+  // Internal binary intake. Kept out of public TOOL_SPECS; only the fileParams bridge can call it.\n  asset_import: z.object({ ...workspace, path: relativePath, kind: z.enum(['png', 'jpeg', 'webp']), contentBase64: z.string().min(4).max(8_000_000), expectedSha256: z.string().regex(/^[a-f0-9]{64}$/), overwrite: z.literal(false).default(false) }),\n  files_write: z.object({ ...workspace, path: relativePath, content: z.string().max(1_048_576), expectedSha256: z.string().length(64).optional() }),
   files_write_batch: z.object({
     ...workspace,
     files: z.array(z.object({
@@ -1174,7 +1174,7 @@ const titles: Record<RunnerOperation, string> = {
   workspace_open: 'Open workspace', workspace_list: 'List workspaces', workspace_status: 'Workspace status', workspace_capabilities: 'Workspace capabilities', workspace_close: 'Close workspace',
   workspace_lease_renew: 'Renew workspace lease', workspace_recover: 'Recover workspace state', workspace_context: 'Workspace context', workspace_set_active: 'Set active workspace',
   workspace_finalize: 'Finalize workspace commit and push',
-  files_list: 'List files', files_read: 'Read file', files_write: 'Write file', files_write_batch: 'Write batch files', files_apply_patch: 'Apply text patch', files_delete: 'Delete file or directory', files_move: 'Move file or directory', files_mkdir: 'Create directory', grep_search: 'Search workspace',
+  files_list: 'List files', files_read: 'Read file', files_write: 'Write file', files_write_batch: 'Write batch files', asset_import: 'Import verified image bytes', files_apply_patch: 'Apply text patch', files_delete: 'Delete file or directory', files_move: 'Move file or directory', files_mkdir: 'Create directory', grep_search: 'Search workspace',
   symbols_search: 'Find symbol definitions', symbols_references: 'Find lexical symbol references',
   exec_run: 'Run command', bash: 'Run bash command',
   packages_plan: 'Plan managed package change', packages_apply: 'Apply managed package plan', packages_list: 'List managed packages', packages_status: 'Managed package status', packages_rollback: 'Roll back managed package', packages_remove: 'Uninstall managed package',
@@ -1219,7 +1219,7 @@ const descriptions: Record<RunnerOperation, string> = {
   files_list: 'List one workspace directory with bounded cursor pagination.',
   files_read: 'Read a bounded byte range from a workspace file with its size, SHA-256, and continuation cursor.',
   files_write: 'Atomically create or replace a workspace file, optionally guarded by its current SHA-256.',
-  files_write_batch: 'Atomically write multiple workspace files in one call, automatically creating missing parent directories.',
+  files_write_batch: 'Atomically write multiple workspace files in one call, automatically creating missing parent directories.',\n  asset_import: 'Internal-only owner-authorized PNG/JPEG/WebP transfer with SHA-256 and no overwrite.',
   files_apply_patch: 'Replace one unique exact text occurrence, optionally guarded by the file SHA-256.',
   files_delete: 'Delete one workspace file or directory, with explicit recursion and optional file hash guard.',
   files_move: 'Move or rename one workspace entry, optionally overwriting an existing file.',
@@ -1330,7 +1330,7 @@ const readOnly = new Set<RunnerOperation>([
 ]);
 const destructive = new Set<RunnerOperation>([
   'workspace_close', 'workspace_recover', 'workspace_finalize',
-  'files_write', 'files_write_batch', 'files_apply_patch', 'files_delete', 'files_move',
+  'files_write', 'files_write_batch', 'asset_import', 'files_apply_patch', 'files_delete', 'files_move',
   'exec_run', 'bash', 'shell_io', 'shell_close', 'sessions_io', 'sessions_close',
   'tasks_run', 'tasks_cancel', 'operation_cancel',
   'git_branch', 'git_checkout', 'git_pull', 'git_push', 'git_merge', 'git_rebase', 'git_identity_set',
@@ -1365,7 +1365,7 @@ const openWorld = new Set<RunnerOperation>([
   'model_catalog_search', 'model_connection_verify'
 ]);
 
-export const TOOL_SPECS: ToolSpec[] = (Object.keys(schemas) as RunnerOperation[]).map((name) => ({
+export const TOOL_SPECS: ToolSpec[] = (Object.keys(schemas) as RunnerOperation[]).filter((name) => name !== 'asset_import').map((name) => ({
   name,
   title: titles[name],
   description: descriptions[name],
