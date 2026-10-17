@@ -783,7 +783,9 @@ const schemas = {
   }),
   files_list: z.object({ ...workspace, path: relativePath.default('.'), ...pagination }),
   files_read: z.object({ ...workspace, path: relativePath, offset: z.number().int().min(0).default(0), limit: z.number().int().min(1).max(1_048_576).default(65_536), cursor: z.string().max(256).optional(), readAll: z.boolean().optional() }),
-  // Internal binary intake. Kept out of public TOOL_SPECS; only the fileParams bridge can call it.\n  asset_import: z.object({ ...workspace, path: relativePath, kind: z.enum(['png', 'jpeg', 'webp']), contentBase64: z.string().min(4).max(8_000_000), expectedSha256: z.string().regex(/^[a-f0-9]{64}$/), overwrite: z.literal(false).default(false) }),\n  files_write: z.object({ ...workspace, path: relativePath, content: z.string().max(1_048_576), expectedSha256: z.string().length(64).optional() }),
+  // Internal binary intake. Kept out of public TOOL_SPECS; only the fileParams bridge can call it.
+  asset_import: z.object({ ...workspace, path: relativePath, kind: z.enum(['png', 'jpeg', 'webp']), contentBase64: z.string().min(4).max(8_000_000), expectedSha256: z.string().regex(/^[a-f0-9]{64}$/), overwrite: z.literal(false).default(false) }),
+  files_write: z.object({ ...workspace, path: relativePath, content: z.string().max(1_048_576), expectedSha256: z.string().length(64).optional() }),
   files_write_batch: z.object({
     ...workspace,
     files: z.array(z.object({
@@ -1219,7 +1221,8 @@ const descriptions: Record<RunnerOperation, string> = {
   files_list: 'List one workspace directory with bounded cursor pagination.',
   files_read: 'Read a bounded byte range from a workspace file with its size, SHA-256, and continuation cursor.',
   files_write: 'Atomically create or replace a workspace file, optionally guarded by its current SHA-256.',
-  files_write_batch: 'Atomically write multiple workspace files in one call, automatically creating missing parent directories.',\n  asset_import: 'Internal-only owner-authorized PNG/JPEG/WebP transfer with SHA-256 and no overwrite.',
+  files_write_batch: 'Atomically write multiple workspace files in one call, automatically creating missing parent directories.',
+  asset_import: 'Internal-only owner-authorized PNG/JPEG/WebP transfer with SHA-256 and no overwrite.',
   files_apply_patch: 'Replace one unique exact text occurrence, optionally guarded by the file SHA-256.',
   files_delete: 'Delete one workspace file or directory, with explicit recursion and optional file hash guard.',
   files_move: 'Move or rename one workspace entry, optionally overwriting an existing file.',
