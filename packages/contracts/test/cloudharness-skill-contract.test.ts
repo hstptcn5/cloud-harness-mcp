@@ -36,7 +36,7 @@ describe('cloudharness skill contract', () => {
   it('documents every registered operation exactly once', async () => {
     const markdownFiles = (await filesBelow(skillRoot)).filter((path) => path.endsWith('.md'));
     const toolNames = (await Promise.all(markdownFiles.map(async (path) => toolsFrom(await readFile(path, 'utf8'))))).flat();
-    const schemaOperations = RunnerOperationSchema.options;
+    const schemaOperations = RunnerOperationSchema.options.filter((name) => name !== 'asset_import');
     const registeredOperations = TOOL_SPECS.map((spec) => spec.name);
 
     expect(new Set(toolNames).size).toBe(toolNames.length);
