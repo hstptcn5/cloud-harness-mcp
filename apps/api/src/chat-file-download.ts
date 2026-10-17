@@ -72,7 +72,7 @@ export async function downloadChatImage(
     maxBytes?: number;
   } = {}
 ): Promise<DownloadedChatImage> {
-  if (!ref || typeof ref.file_id !== 'string' || !ref.file_id.length || ref.file_id.length > 300 || /[\x00-\x1f\x7f]/.test(ref.file_id)
+  if (!ref || typeof ref.file_id !== 'string' || !ref.file_id.length || ref.file_id.length > 300 || [...ref.file_id].some(ch => { const n = ch.charCodeAt(0); return n < 32 || n === 127; })
     || typeof ref.download_url !== 'string' || ref.download_url.length > 8192) {
     throw new ChatFileImportError('INVALID_INPUT', 'Authorized ChatGPT file object with file_id and download_url required');
   }

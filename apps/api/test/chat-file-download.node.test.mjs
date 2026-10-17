@@ -1,4 +1,6 @@
 import test from 'node:test';
+import { Buffer } from 'node:buffer';
+const { Response } = globalThis;
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import {
