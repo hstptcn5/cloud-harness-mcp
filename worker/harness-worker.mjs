@@ -1,6 +1,6 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { existsSync, realpathSync, writeFileSync } from 'node:fs';
-import { chmod, cp, lstat, mkdir, readFile, readdir, realpath, rename, rm, stat, writeFile } from 'node:fs/promises';
+import { chmod, cp, link, lstat, mkdir, readFile, readdir, realpath, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { spawn } from 'node:child_process';
@@ -949,6 +949,43 @@ const handlers = {
     await writeFile(temporary, input.content, { mode: 0o600, flag: 'wx' });
     await rename(temporary, target);
     return ok('File written', { path: input.path, bytes: Buffer.byteLength(input.content), sha256: sha256(input.content) });
+  },
+  /** Bounded, no-overwrite image intake from an authenticated, owner-bound runner request. */
+  async asset_import(input) {
+    const encoded = input.contentBase64;
+    if (typeof encoded !== 'string' || encoded.length < 4 || encoded.length > 8_000_000 ||
+        !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(encoded)) {
+      return fail('INVALID_INPUT', 'invalid bounded image data');
+    }
+    const bytes = Buffer.from(encoded, 'base64');
+    if (bytes.length < 12 || bytes.length > 6_000_000 || bytes.toString('base64') !== encoded) {
+      return fail('LIMIT_EXCEEDED', 'image is empty, corrupt or exceeds 6 MB');
+    }
+    const actual = bytes.subarray(0, 8).equals(Buffer.from([137,80,78,71,13,10,26,10])) ? 'png'
+      : bytes[0] === 255 && bytes[1] === 216 && bytes[2] === 255 ? 'jpeg'
+      : bytes.toString('ascii', 0, 4) === 'RIFF' && bytes.toString('ascii', 8, 12) === 'WEBP' ? 'webp' : null;
+    if (!actual || input.kind !== actual) return fail('INVALID_INPUT', 'image signature does not match declared format');
+    const digest = sha256(bytes);
+    if (digest !== input.expectedSha256) return fail('CONFLICT', 'image SHA-256 mismatch');
+    if (input.overwrite !== false) return fail('INVALID_INPUT', 'overwriting imported images is forbidden');
+    let target;
+    try { target = await safeBatchFilePath(input.path, true); }
+    catch { return fail('INVALID_INPUT', 'destination path escapes workspace'); }
+    const folder = dirname(target);
+    const temporary = join(folder, `.cloud-harness-image-${process.pid}-${randomBytes(8).toString('hex')}.tmp`);
+    try {
+      await mkdir(folder, { recursive: true });
+      await safeBatchFilePath(input.path, false);
+      await writeFile(temporary, bytes, { flag: 'wx', mode: 0o600 });
+      // link() fails with EEXIST, including for existing symlinks: never replace a prior file.
+      await link(temporary, target);
+      return ok('Image imported without overwrite', { path: input.path, sha256: digest, sizeBytes: bytes.length, format: actual });
+    } catch (error) {
+      if (error?.code === 'EEXIST') return fail('CONFLICT', 'destination file already exists');
+      return fail('INVALID_INPUT', 'image destination could not be created safely');
+    } finally {
+      await rm(temporary, { force: true }).catch(() => {});
+    }
   },
   async artifacts_restore(input) {
     if (!input.path || typeof input.path !== 'string') return fail('INVALID_INPUT', 'invalid destination path');

@@ -210,11 +210,11 @@ describe('MCP Events over streamable HTTP', () => {
     const client = await connect('modern', bodies);
     const discover = bodies.map((body) => (body as { result?: Record<string, unknown> }).result).find((result) => result && 'capabilities' in result);
     expect((discover!.capabilities as Record<string, unknown>).events).toEqual({});
-    expect((await client.listTools()).tools.map((tool) => tool.name)).toEqual(TOOL_SPECS.map((spec) => spec.name));
+    expect((await client.listTools()).tools.map((tool) => tool.name)).toEqual([...TOOL_SPECS.map((spec) => spec.name), 'orion_import_chat_file']);
     await client.close();
 
     const legacy = await connect('legacy');
-    expect((await legacy.listTools()).tools.map((tool) => tool.name)).toEqual(TOOL_SPECS.map((spec) => spec.name));
+    expect((await legacy.listTools()).tools.map((tool) => tool.name)).toEqual([...TOOL_SPECS.map((spec) => spec.name), 'orion_import_chat_file']);
     expect((await legacy.callTool({ name: 'workspace_list', arguments: {} })).isError).toBeFalsy();
     await legacy.close();
   });
