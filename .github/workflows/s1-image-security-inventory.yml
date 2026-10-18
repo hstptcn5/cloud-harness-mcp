@@ -1,0 +1,55 @@
+name: S1 effective runtime and executor inventory
+on:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  runtime:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        image: [api, runner, agent]
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - name: Build exactly committed runtime image
+        run: docker build -f docker/${{ matrix.image }}.Dockerfile -t cloud-harness-s1-${{ matrix.image }}:audit .
+      - name: Registry-backed post-prune npm audit and effective tree
+        run: |
+          docker run --rm --entrypoint npm cloud-harness-s1-${{ matrix.image }}:audit audit --omit=dev --json > s1-${{ matrix.image }}-audit.json || true
+          docker run --rm --entrypoint npm cloud-harness-s1-${{ matrix.image }}:audit ls --omit=dev --all --json > s1-${{ matrix.image }}-tree.json || true
+          IMAGE="${{ matrix.image }}" node - <<'JS'
+          const fs=require('node:fs');const x=process.env.IMAGE;
+          const a=JSON.parse(fs.readFileSync('s1-'+x+'-audit.json'));
+          if(a.error)throw Error('npm audit failed to load online advisories: '+JSON.stringify(a.error));
+          console.log('S1_IMAGE_AUDIT',x,JSON.stringify(a.metadata?.vulnerabilities));
+          for(const [name,v] of Object.entries(a.vulnerabilities||{}))if(['critical','high'].includes(v.severity)){
+            console.log('S1_IMAGE_HIGH',JSON.stringify({image:x,name,severity:v.severity,via:v.via,fixAvailable:v.fixAvailable,nodes:v.nodes}));
+          }
+          JS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: s1-runtime-${{ matrix.image }}
+          path: s1-${{ matrix.image }}-*.json
+          retention-days: 14
+  executor:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - name: Build executor and inventory global npm toolchain
+        run: |
+          docker build -f docker/executor.Dockerfile -t cloud-harness-s1-executor:audit .
+          docker run --rm --entrypoint npm cloud-harness-s1-executor:audit ls -g --depth=0 --json > s1-executor-global-tools.json
+          docker run --rm --entrypoint node cloud-harness-s1-executor:audit --version
+          IMAGE=executor node - <<'JS'
+          const fs=require('node:fs');const x=JSON.parse(fs.readFileSync('s1-executor-global-tools.json'));
+          console.log('S1_EXECUTOR_GLOBAL',JSON.stringify(x.dependencies||{}));
+          JS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: s1-executor-global-tools
+          path: s1-executor-global-tools.json
+          retention-days: 14
