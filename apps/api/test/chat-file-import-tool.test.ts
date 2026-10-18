@@ -99,7 +99,8 @@ describe('ChatGPT fileParams to bound owner asset_import', () => {
     };
     const c = await connect(backend);
     try {
-      const {workspaceId:_omitted,...withoutWorkspace} = sample;
+      const withoutWorkspace={...sample};
+      delete (withoutWorkspace as {workspaceId?:string}).workspaceId;
       const res=await c.client.callTool({name:'orion_import_chat_file',arguments:withoutWorkspace});
       expect(res.isError).toBe(false);
       expect(operations.map(x=>x.op)).toEqual(['workspace_status','asset_import']);
