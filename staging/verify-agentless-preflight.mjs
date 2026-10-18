@@ -4,6 +4,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { writeFileSync } from 'node:fs';
 import process from 'node:process';
 import console from 'node:console';
 import { loadRunnerConfig } from '../apps/runner/dist/config.js';
@@ -90,6 +91,21 @@ try{
   for(const k of Object.keys(process.env))delete process.env[k];
   Object.assign(process.env,prev);
 }
+const sanitized={
+  name:config.name,revision:commit,
+  services:Object.fromEntries(Object.entries(config.services).map(([name,service])=>[name,{
+    image:service.image,environmentKeys:Object.keys(service.environment??{}).sort(),
+    agentKeys:Object.keys(service.environment??{}).filter(k=>k.startsWith('AGENT_')),
+    envFilePresent:service.env_file!==undefined,
+    readOnlyRoot:service.read_only===true,capDrop:service.cap_drop??[],
+    securityOpt:service.security_opt??[],
+    mountTargets:(service.volumes??[]).map(x=>x.target),
+    networks:Object.keys(service.networks??{}),
+    publishedPorts:(service.ports??[]).map(x=>({hostIp:x.host_ip,published:String(x.published),target:x.target}))
+  }])),
+  evidenceNote:'No credentials or host paths in this resolved Compose summary. Source: docker compose config --format json.'
+};
+writeFileSync('staging-resolved-agentless-sanitized.json',JSON.stringify(sanitized,null,2)+'\\n');
 console.log(JSON.stringify({check:'PASS',candidate:commit,services:Object.keys(config.services),agentsEnabled:false,
   agentOperationFailures:6,publishedPorts:ports.length,ingressBind:'loopback-only',
   imageTags:[config.services.api.image,config.services.runner.image,config.services.runner.environment.EXECUTOR_IMAGE]}));
