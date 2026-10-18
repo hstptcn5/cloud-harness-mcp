@@ -1,0 +1,74 @@
+name: Orion M1 S1 isolated staging authorization preflight
+on:
+  push:
+    branches: [staging-candidate/orion-m1-s1-isolated-20261018]
+permissions:
+  contents: read
+jobs:
+  configuration-and-oauth:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 24.11.0
+          cache: npm
+      - run: npm ci
+      - name: Build contracts and Runner for effective configuration loader
+        run: npm run build -w @cloud-harness/contracts && npm run build -w @cloud-harness/runner
+      - name: Verify standalone Compose, actual Runner config and fail-closed Agent operations
+        env:
+          STAGING_REVISION: ${{ github.sha }}
+        run: node staging/verify-agentless-preflight.mjs
+      - name: Test persisted OAuth issuer, restart, refresh and legacy grants
+        run: npx vitest run apps/api/test/mcp-oauth-persistence-staging.test.ts apps/api/test/mcp-oauth-issuer-security.test.ts --no-file-parallelism
+  image-provenance:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        image: [api, runner, executor]
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - name: Build only required M1 images (never Agent)
+        env:
+          IMAGE: ${{ matrix.image }}
+          REV: ${{ github.sha }}
+        run: |
+          docker build --label "org.opencontainers.image.revision=$REV" -f "docker/$IMAGE.Dockerfile" -t "orion-m1-s1-$IMAGE:$REV" .
+          docker image inspect "orion-m1-s1-$IMAGE:$REV" --format '{{.Id}}' | tee "staging-$IMAGE-image-id.txt"
+          test "$(docker image inspect "orion-m1-s1-$IMAGE:$REV" --format '{{index .Config.Labels "org.opencontainers.image.revision"}}')" = "$REV"
+          echo "IMAGE_BUILT $IMAGE REV=$REV"
+      - name: Online audit final image (API and Runner)
+        if: matrix.image != 'executor'
+        env:
+          IMAGE: ${{ matrix.image }}
+          REV: ${{ github.sha }}
+        run: |
+          docker run --rm --entrypoint npm "orion-m1-s1-$IMAGE:$REV" audit --omit=dev --json > "staging-$IMAGE-audit.json" || true
+          docker run --rm --entrypoint npm "orion-m1-s1-$IMAGE:$REV" ls --omit=dev --all --json > "staging-$IMAGE-tree.json" || true
+          node - <<'JS'
+          const fs=require('node:fs');
+          const name=process.env.IMAGE;
+          const a=JSON.parse(fs.readFileSync('staging-'+name+'-audit.json'));
+          if(a.error || !a.metadata?.vulnerabilities)throw Error('online advisory audit data missing');
+          console.log('STAGING_IMAGE_AUDIT',name,JSON.stringify(a.metadata.vulnerabilities));
+          for(const [pkg,v] of Object.entries(a.vulnerabilities||{})){
+            console.log('STAGING_RISK',JSON.stringify({image:name,package:pkg,severity:v.severity,via:v.via,range:v.range,fixAvailable:v.fixAvailable,nodes:v.nodes}));
+          }
+          if(a.metadata.vulnerabilities.critical>0 || a.metadata.vulnerabilities.high>0)throw Error('unreviewed high/critical runtime advisory in '+name);
+          JS
+      - name: Executor global npm tool versions, distinct from lockfile audit
+        if: matrix.image == 'executor'
+        env:
+          REV: ${{ github.sha }}
+        run: |
+          docker run --rm --entrypoint npm "orion-m1-s1-executor:$REV" ls -g --depth=0 --json > staging-executor-global-tools.json
+          node -e "let x=require('./staging-executor-global-tools.json');console.log('STAGING_EXECUTOR_GLOBAL',JSON.stringify(x.dependencies||{}))"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: staging-preflight-${{ matrix.image }}
+          path: staging-${{ matrix.image }}-*
+          retention-days: 14

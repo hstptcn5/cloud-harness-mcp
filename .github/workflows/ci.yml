@@ -3,7 +3,7 @@ name: CI
 on:
   pull_request:
   push:
-    branches: [dev, main]
+    branches: [dev, main, staging-candidate/orion-m1-s1-isolated-20261018]
   workflow_dispatch:
 
 permissions:

@@ -1,0 +1,119 @@
+# STANDALONE staging-only Compose file. NEVER layer with compose.yaml or compose.production.yaml.
+# Requires a dedicated staging Docker host / daemon, NOT production's docker.sock.
+name: orion-m1-s1-isolated-staging
+services:
+  api:
+    image: "orion-m1-s1-api:${STAGING_REVISION:?full reviewed git sha required}"
+    pull_policy: never
+    restart: "no"
+    environment:
+      AUTH_MODE: owner-bearer
+      API_HOST: 0.0.0.0
+      API_PORT: "3000"
+      OWNER_ID: orion-m1-staging-owner
+      RUNNER_URL: http://runner:3001
+      RUNNER_TOKEN_FILE: /run/staging-secrets/runner-token
+      MCP_BEARER_TOKEN_FILE: /run/staging-secrets/owner-token
+      API_PUBLIC_HOSTS: "127.0.0.1,localhost,${STAGING_PUBLIC_HOST:?staging-only domain required}"
+      API_ALLOWED_ORIGINS: "${STAGING_ALLOWED_ORIGIN:?staging-only https origin required}"
+      MAX_BODY_BYTES: "1048576"
+      MCP_GATEWAY_ALLOW_PRIVATE_ENDPOINTS: "false"
+      MCP_GATEWAY_ALLOW_INSECURE_HTTP: "false"
+    volumes:
+      - type: bind
+        source: "${STAGING_ROOT:?dedicated root required}/secrets"
+        target: /run/staging-secrets
+        read_only: true
+    read_only: true
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,noexec,size=32m
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    networks: [frontend, control, image-egress]
+    depends_on:
+      runner: { condition: service_healthy }
+    healthcheck:
+      test: [CMD, node, -e, "fetch('http://127.0.0.1:3000/healthz').then(r=>{if(!r.ok)process.exit(1)})"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+
+  ingress:
+    image: "orion-m1-s1-api:${STAGING_REVISION:?full reviewed git sha required}"
+    pull_policy: never
+    restart: "no"
+    command: [node, /app/deploy/ingress-proxy.mjs]
+    environment:
+      INGRESS_HOST: 0.0.0.0
+      INGRESS_PORT: "3100"
+      API_UPSTREAM_HOST: api
+      API_UPSTREAM_PORT: "3000"
+    ports:
+      - "127.0.0.1:${STAGING_INGRESS_PORT:?dedicated loopback port required}:3100"
+    read_only: true
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,noexec,size=8m
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    networks: [frontend, ingress]
+    depends_on:
+      api: { condition: service_healthy }
+
+  runner:
+    image: "orion-m1-s1-runner:${STAGING_REVISION:?full reviewed git sha required}"
+    pull_policy: never
+    restart: "no"
+    environment:
+      AUTH_MODE: owner-bearer
+      RUNNER_HOST: 0.0.0.0
+      RUNNER_PORT: "3001"
+      RUNNER_TOKEN_FILE: /run/staging-secrets/runner-token
+      EXECUTOR_IMAGE: "orion-m1-s1-executor:${STAGING_REVISION:?full reviewed git sha required}"
+      WORKSPACE_NETWORK_PROFILE: network-none
+      PACKAGES_ENABLED: "false"
+      ENABLE_TOOLKIT_CACHE: "false"
+      JOBS_ROOT: "${STAGING_ROOT:?}/jobs"
+      STATE_DB: "${STAGING_ROOT:?}/state/cloud-harness.db"
+      ARTIFACT_ROOT: "${STAGING_ROOT:?}/artifacts"
+      REPO_CACHE_ROOT: "${STAGING_ROOT:?}/cache/repos"
+      TOOLKIT_CACHE_ROOT: "${STAGING_ROOT:?}/cache/toolkits"
+      PACKAGES_ROOT: "${STAGING_ROOT:?}/packages"
+      ALLOWED_GIT_HOSTS: github.com
+    volumes:
+      # Docker socket MUST be the dedicated staging host's, never production.
+      - type: bind
+        source: /var/run/docker.sock
+        target: /var/run/docker.sock
+      # Runner must see same host paths it passes to its own Docker daemon.
+      - type: bind
+        source: "${STAGING_ROOT:?}/jobs"
+        target: "${STAGING_ROOT:?}/jobs"
+      - type: bind
+        source: "${STAGING_ROOT:?}/state"
+        target: "${STAGING_ROOT:?}/state"
+      - type: bind
+        source: "${STAGING_ROOT:?}/artifacts"
+        target: "${STAGING_ROOT:?}/artifacts"
+      - type: bind
+        source: "${STAGING_ROOT:?}/cache"
+        target: "${STAGING_ROOT:?}/cache"
+      - type: bind
+        source: "${STAGING_ROOT:?}/packages"
+        target: "${STAGING_ROOT:?}/packages"
+      - type: bind
+        source: "${STAGING_ROOT:?}/secrets"
+        target: /run/staging-secrets
+        read_only: true
+    networks: [control, git-egress]
+    healthcheck:
+      test: [CMD, node, -e, "fetch('http://127.0.0.1:3001/healthz').then(r=>{if(!r.ok)process.exit(1)})"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+
+networks:
+  frontend: { internal: true }
+  control: { internal: true }
+  ingress: { driver: bridge }
+  image-egress: { driver: bridge }
+  git-egress: { driver: bridge }
