@@ -1,6 +1,6 @@
 import { createHash, randomBytes } from 'node:crypto';
-import { existsSync, realpathSync, writeFileSync } from 'node:fs';
-import { chmod, cp, lstat, mkdir, readFile, readdir, realpath, rename, rm, stat, writeFile } from 'node:fs/promises';
+import { constants as fsConstants, existsSync, realpathSync, writeFileSync } from 'node:fs';
+import { chmod, cp, link, lstat, mkdir, open, readFile, readdir, realpath, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { spawn } from 'node:child_process';
@@ -84,6 +84,41 @@ async function safeBatchFilePath(input, allowMissingParent = false) {
   }
   return candidate;
 }
+/**
+ * Pin every ancestor to a Linux directory file descriptor. Re-resolving a
+ * validated pathname after a concurrent symlink swap is unsafe: mkdir(),
+ * writeFile() and link() must all operate relative to the same open directory.
+ * /proc/self/fd/N names the *opened inode*, not the mutable parent pathname.
+ * This is executor-only (Linux); fail closed elsewhere.
+ */
+export async function openConfinedImportDirectory(input) {
+  if (process.platform !== 'linux' || !existsSync('/proc/self/fd')) throw new Error('secure directory handles unavailable');
+  if (typeof input !== 'string') throw new Error('invalid image path');
+  const normalized = input.replaceAll('\\', '/');
+  const parts = normalized.split('/');
+  if (parts.some(part => !part || part === '.' || part === '..') ||
+      normalized.startsWith('/') || /^[A-Za-z]:/.test(normalized) || normalized.includes('\0')) {
+    throw new Error('image path escapes workspace');
+  }
+  let directory = await open(getWorkspaceRoot(), fsConstants.O_RDONLY | fsConstants.O_DIRECTORY | fsConstants.O_NOFOLLOW);
+  try {
+    for (const part of parts.slice(0, -1)) {
+      const child = `/proc/self/fd/${directory.fd}/${part}`;
+      try { await mkdir(child); }
+      catch (error) { if (error?.code !== 'EEXIST') throw error; }
+      // NOFOLLOW prevents any symlink in the path walk, even after mkdir().
+      const next = await open(child, fsConstants.O_RDONLY | fsConstants.O_DIRECTORY | fsConstants.O_NOFOLLOW);
+      await directory.close();
+      directory = next;
+    }
+    const dirPath = `/proc/self/fd/${directory.fd}`;
+    return { directory, dirPath, target: join(dirPath, parts.at(-1)) };
+  } catch (error) {
+    await directory.close();
+    throw error;
+  }
+}
+
 async function safeEntryPath(input, allowMissing = false) {
   const normalized = input.replaceAll('\\', '/');
   if (normalized === '.' || normalized.startsWith('/') || normalized.split('/').includes('..') || /^[A-Za-z]:/.test(normalized) || normalized.includes('\0')) throw new Error('path escapes workspace');
@@ -949,6 +984,71 @@ const handlers = {
     await writeFile(temporary, input.content, { mode: 0o600, flag: 'wx' });
     await rename(temporary, target);
     return ok('File written', { path: input.path, bytes: Buffer.byteLength(input.content), sha256: sha256(input.content) });
+  },
+  /** Bounded, no-overwrite image intake from an authenticated, owner-bound runner request. */
+  async asset_import(input) {
+    const encoded = input.contentBase64;
+    if (typeof encoded !== 'string' || encoded.length < 4 || encoded.length > 8_000_000 ||
+        !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(encoded)) {
+      return fail('INVALID_INPUT', 'invalid bounded image data');
+    }
+    const bytes = Buffer.from(encoded, 'base64');
+    if (bytes.length < 12 || bytes.length > 6_000_000 || bytes.toString('base64') !== encoded) {
+      return fail('LIMIT_EXCEEDED', 'image is empty, corrupt or exceeds 6 MB');
+    }
+    const actual = bytes.subarray(0, 8).equals(Buffer.from([137,80,78,71,13,10,26,10])) ? 'png'
+      : bytes[0] === 255 && bytes[1] === 216 && bytes[2] === 255 ? 'jpeg'
+      : bytes.toString('ascii', 0, 4) === 'RIFF' && bytes.toString('ascii', 8, 12) === 'WEBP' ? 'webp' : null;
+    if (!actual || input.kind !== actual) return fail('INVALID_INPUT', 'image signature does not match declared format');
+    const digest = sha256(bytes);
+    if (digest !== input.expectedSha256) return fail('CONFLICT', 'image SHA-256 mismatch');
+    if (input.overwrite !== false) return fail('INVALID_INPUT', 'overwriting imported images is forbidden');
+    let confined;
+    try { confined = await openConfinedImportDirectory(input.path); }
+    catch { return fail('INVALID_INPUT', 'destination path cannot be safely opened'); }
+    const { directory, dirPath, target } = confined;
+    const temporary = join(dirPath, `.cloud-harness-image-${process.pid}-${randomBytes(8).toString('hex')}.tmp`);
+    const verifyExisting = async () => {
+      let handle;
+      try {
+        // Parent remains pinned; O_NOFOLLOW prevents reuse of a final symlink.
+        handle = await open(target, fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW);
+        const before = await handle.stat({ bigint: true });
+        if (!before.isFile() || before.size !== BigInt(bytes.length)) {
+          return fail('CONFLICT', 'destination contains different image bytes');
+        }
+        const existingHash = sha256(await handle.readFile());
+        const after = await handle.stat({ bigint: true });
+        const current = await lstat(target, { bigint: true });
+        // Do not accept a replaced pathname, or a file modified while hashing.
+        if (existingHash !== digest || !current.isFile() ||
+            current.dev !== after.dev || current.ino !== after.ino ||
+            before.size !== after.size || before.mtimeNs !== after.mtimeNs) {
+          // ctime is intentionally not compared: unlinking the temporary
+          // hardlink legitimately changes nlink/ctime during concurrent retry.
+          return fail('CONFLICT', 'destination changed or contains different image bytes');
+        }
+        return ok('Identical image already imported', {
+          path: input.path, sha256: digest, sizeBytes: bytes.length, format: actual, alreadyImported: true
+        });
+      } catch {
+        return fail('CONFLICT', 'destination cannot be safely reused');
+      } finally {
+        await handle?.close().catch(() => {});
+      }
+    };
+    try {
+      await writeFile(temporary, bytes, { flag: 'wx', mode: 0o600 });
+      // Both operands are relative to the same open directory, never a mutable parent path.
+      await link(temporary, target);
+      return ok('Image imported without overwrite', { path: input.path, sha256: digest, sizeBytes: bytes.length, format: actual, alreadyImported: false });
+    } catch (error) {
+      if (error?.code === 'EEXIST') return await verifyExisting();
+      return fail('INVALID_INPUT', 'image destination could not be created safely');
+    } finally {
+      await rm(temporary, { force: true }).catch(() => {});
+      await directory.close();
+    }
   },
   async artifacts_restore(input) {
     if (!input.path || typeof input.path !== 'string') return fail('INVALID_INPUT', 'invalid destination path');

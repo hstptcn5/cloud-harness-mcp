@@ -27,7 +27,8 @@ export class RunnerClient {
   constructor(private readonly config: ApiConfig) {}
 
   async call(operation: RunnerOperation, input: Record<string, unknown>, principal: RunnerPrincipalSelector, signal?: AbortSignal): Promise<RunnerResponse> {
-    return await this.request('/v1/operations', RunnerRequestSchema.parse({ version: 2, principal, operation, input }), RunnerResponseSchema, signal);
+    const endpoint = operation === 'asset_import' ? '/v1/assets/import' : '/v1/operations';
+    return await this.request(endpoint, RunnerRequestSchema.parse({ version: 2, principal, operation, input }), RunnerResponseSchema, signal);
   }
 
   async callInternal(operation: InternalRunnerOperation | MetadataRunnerOperation, input: Record<string, unknown>, principal: RunnerPrincipalSelector, signal?: AbortSignal): Promise<RunnerResponse> {

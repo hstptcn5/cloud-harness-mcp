@@ -24,6 +24,26 @@ export function createRunnerApp(config: RunnerConfig, service: WorkspaceService,
   // larger parse is never spent on an unauthenticated caller, and the parser marks the body as read so the
   // default one below skips it.
   app.use('/v1/internal/dashboard-operations', serviceAuth(config.serviceToken), express.json({ limit: DASHBOARD_OPERATION_BODY_LIMIT, strict: true }));
+  // Dedicated authenticated large-body lane: only asset_import is accepted here.
+  // All ordinary MCP operations keep their existing 1 MiB runner limit.
+  app.post('/v1/assets/import', serviceAuth(config.serviceToken), express.json({ limit: '9mb', strict: true }), async (request: Request, response: Response) => {
+    const controller = new AbortController();
+    const cancel = () => { if (!response.writableEnded) controller.abort(); };
+    response.once('close', cancel);
+    try {
+      const parsed = RunnerRequestSchema.parse(request.body);
+      if (parsed.operation !== 'asset_import') {
+        response.status(400).json({ ok: false, message: 'image import only', error: { code: 'INVALID_INPUT', message: 'image import only', retryable: false }, truncated: false });
+        return;
+      }
+      const result = await service.execute(runnerRequestPrincipal(parsed), 'asset_import', parsed.input, controller.signal);
+      if (!response.writableEnded && !controller.signal.aborted) response.status(result.ok ? 200 : 400).json(result);
+    } catch (error) {
+      if (!controller.signal.aborted) sendRunnerError(response, error);
+    } finally {
+      response.removeListener('close', cancel);
+    }
+  });
   app.use(express.json({ limit: '1mb', strict: true }));
   app.get('/healthz', (_request, response) => response.json({ status: 'ok' }));
   app.post('/v1/operations', serviceAuth(config.serviceToken), async (request: Request, response: Response) => {
