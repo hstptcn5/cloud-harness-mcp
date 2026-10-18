@@ -1,0 +1,41 @@
+name: S1 final exact-lockfile online audit
+on:
+  push:
+    branches: [test/s1-final-lock-audit-20261018]
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 3
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 24.11.0
+      - name: Assert lockfile unchanged from S1 PR head
+        run: |
+          git cat-file -e 7516e9eef959640db1815434061b35569b8f599f^{commit}
+          git diff --quiet 7516e9eef959640db1815434061b35569b8f599f HEAD -- package-lock.json package.json apps/api/package.json apps/runner/package.json apps/agent-runtime/package.json
+      - name: Exact online audit of entire and production-only lock
+        run: |
+          npm audit --json > s1-audit-full.json || true
+          npm audit --omit=dev --json > s1-audit-production.json || true
+          node - <<'JS'
+          const fs=require('fs');
+          for(const file of ['s1-audit-full.json','s1-audit-production.json']){
+            const r=JSON.parse(fs.readFileSync(file,'utf8'));
+            if(r.error)throw Error(JSON.stringify(r.error));
+            console.log('S1_FINAL_LOCK_AUDIT',file,JSON.stringify(r.metadata?.vulnerabilities));
+            for(const [name,x] of Object.entries(r.vulnerabilities||{}))
+              if(['high','critical'].includes(x.severity))
+                console.log('S1_FINAL_LOCK_ITEM',JSON.stringify({name,severity:x.severity,range:x.range,nodes:x.nodes,via:x.via}));
+          }
+          JS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: s1-final-exact-lockfile-audit
+          path: s1-audit-*.json
+          retention-days: 14
