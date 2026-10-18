@@ -54,7 +54,7 @@ export function createLocalHttpApp(pool: LocalWorkspacePool, settings: LocalHttp
   };
   const mcpHandler = createMcpHandler(
     () => createCloudHarnessServer(new MultiLocalWorkspaceBackend(pool, 'explicit')),
-    { legacy: 'stateless', responseMode: 'auto' }
+    { legacy: 'stateless', responseMode: 'auto', maxRequestBodySize: MAX_BODY_BYTES }
   );
   const handler = toNodeHandler(mcpHandler);
   const app = express();
