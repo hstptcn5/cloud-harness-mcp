@@ -180,11 +180,22 @@ export class DownstreamOAuthProvider implements OAuthClientProvider {
 
   async clientInformation(): Promise<StoredOAuthClientInformation | undefined> {
     await this.load();
+    const expected = this.options.flow?.expectedIssuer ?? issuerOf(this.grant.discoveryState);
     const manual = this.options.manualClient;
     if (manual) {
-      return { client_id: manual.clientId, ...(manual.clientSecret ? { client_secret: manual.clientSecret } : {}) } as StoredOAuthClientInformation;
+      // An explicitly configured client secret is never returned without an
+      // authorization-server issuer to bind it to (GHSA-6qxp-vccf-f47h).
+      if (!expected) return undefined;
+      return { client_id: manual.clientId, ...(manual.clientSecret ? { client_secret: manual.clientSecret } : {}), issuer: expected } as StoredOAuthClientInformation;
     }
-    return this.grant.clientInformation;
+    const info = this.grant.clientInformation;
+    // Pre-S1 encrypted grants lack issuer. Force new authorization rather than
+    // expose client credentials to metadata supplied by a different MCP server.
+    if (info && (!('issuer' in info) || info.issuer !== expected)) {
+      this.dirty = true;
+      return undefined;
+    }
+    return info;
   }
 
   async saveClientInformation(info: StoredOAuthClientInformation): Promise<void> {
@@ -199,6 +210,11 @@ export class DownstreamOAuthProvider implements OAuthClientProvider {
     await this.load();
     const tokens = this.grant.tokens;
     if (!tokens) return undefined;
+    const expected = this.options.flow?.expectedIssuer ?? issuerOf(this.grant.discoveryState);
+    if (!('issuer' in tokens) || tokens.issuer !== expected) {
+      this.dirty = true;
+      return undefined; // Legacy credentials require re-authorization.
+    }
     const obtainedAt = this.grant.tokensObtainedAt;
     if (typeof tokens.expires_in === 'number' && obtainedAt !== undefined) {
       const remaining = Math.floor(tokens.expires_in - (this.now() - obtainedAt) / 1000);

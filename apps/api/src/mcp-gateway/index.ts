@@ -103,7 +103,7 @@ export function createMcpGateway(
   const factory = (context: McpRequestContext): McpServer => {
     const server = new McpServer(
       { name: 'cloud-harness-mcp-gateway', version: serverVersion },
-      { instructions: GATEWAY_INSTRUCTIONS }
+      { instructions: GATEWAY_INSTRUCTIONS, maxToolInputElements: 10_000 }
     );
     // The five tools are always registered so `tools/list` is constant; a request
     // without a verified principal is refused at call time instead.
