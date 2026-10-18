@@ -1,0 +1,55 @@
+name: Orion M1 exact-lockfile online security audit
+on:
+  push:
+    branches: [audit/orion-m1-npm-registry-20261018]
+permissions:
+  contents: read
+jobs:
+  inventory:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 24.11.0
+      - name: Verify exact target commit
+        run: test "$(git rev-parse HEAD^)" = "4cb540ac925aa113542861f65331cdb81c4760df" && git diff --quiet HEAD^ HEAD -- package-lock.json package.json apps/api/package.json apps/runner/package.json apps/agent-runtime/package.json
+      - name: Registry-backed audit of complete and production lockfile
+        run: |
+          npm audit --json > audit-full.json || true
+          npm audit --omit=dev --json > audit-production.json || true
+          npm audit --omit=dev --workspace @cloud-harness/api --json > audit-api-scope.json || true
+          npm audit --omit=dev --workspace @cloud-harness/runner --json > audit-runner-scope.json || true
+          npm audit --omit=dev --workspace @cloud-harness/agent-runtime --json > audit-agent-scope.json || true
+          for p in audit-full.json audit-production.json audit-api-scope.json audit-runner-scope.json audit-agent-scope.json; do
+            AUDIT_FILE="$p" node -e 'const fs=require("fs");const r=JSON.parse(fs.readFileSync(process.env.AUDIT_FILE));const v=r.vulnerabilities||{};console.log("AUDIT_SUMMARY",JSON.stringify({file:process.env.AUDIT_FILE,metadata:r.metadata?.vulnerabilities,error:r.error||null}));for(const [name,x] of Object.entries(v)){if(!["high","critical"].includes(x.severity))continue;console.log("AUDIT_ITEM",JSON.stringify({file:process.env.AUDIT_FILE,name,severity:x.severity,isDirect:x.isDirect,range:x.range,nodes:x.nodes,fixAvailable:x.fixAvailable,via:x.via}));}' 
+          done
+      - uses: actions/upload-artifact@v4
+        with:
+          name: orion-m1-exact-lockfile-audit
+          path: audit-*.json
+          retention-days: 14
+  images:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        image: [api, runner, agent]
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - name: Verify target source and build effective runtime image
+        run: |
+          test "$(git rev-parse HEAD^)" = "4cb540ac925aa113542861f65331cdb81c4760df"
+          docker build -f docker/${{ matrix.image }}.Dockerfile -t orion-m1-audit-${{ matrix.image }}:local .
+      - name: Registry-backed audit inside final post-prune image
+        run: |
+          docker run --rm --entrypoint npm orion-m1-audit-${{ matrix.image }}:local audit --omit=dev --json > image-${{ matrix.image }}-audit.json || true
+          docker run --rm --entrypoint npm orion-m1-audit-${{ matrix.image }}:local ls --omit=dev --all --json > image-${{ matrix.image }}-tree.json || true
+          AUDIT_FILE=image-${{ matrix.image }}-audit.json node -e 'const fs=require("fs");const r=JSON.parse(fs.readFileSync(process.env.AUDIT_FILE));console.log("IMAGE_SUMMARY",JSON.stringify({image:process.env.AUDIT_FILE,metadata:r.metadata?.vulnerabilities,error:r.error||null}));for(const [name,x] of Object.entries(r.vulnerabilities||{})){if(!["high","critical"].includes(x.severity))continue;console.log("IMAGE_ITEM",JSON.stringify({image:process.env.AUDIT_FILE,name,severity:x.severity,isDirect:x.isDirect,range:x.range,nodes:x.nodes,fixAvailable:x.fixAvailable,via:x.via}));}'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: orion-m1-post-prune-${{ matrix.image }}
+          path: image-${{ matrix.image }}-*.json
+          retention-days: 14
