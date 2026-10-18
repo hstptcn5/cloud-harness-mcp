@@ -23,6 +23,11 @@ jobs:
         run: node staging/verify-agentless-preflight.mjs
       - name: Test persisted OAuth issuer, restart, refresh and legacy grants
         run: npx vitest run apps/api/test/mcp-oauth-persistence-staging.test.ts apps/api/test/mcp-oauth-issuer-security.test.ts --no-file-parallelism
+      - uses: actions/upload-artifact@v4
+        with:
+          name: staging-agentless-resolved-compose
+          path: staging-resolved-agentless-sanitized.json
+          retention-days: 14
   image-provenance:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
