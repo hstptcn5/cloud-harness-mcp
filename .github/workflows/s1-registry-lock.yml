@@ -1,0 +1,62 @@
+name: S1 registry lockfile synchronization
+on:
+  push:
+    branches: [security/s1-mcp-runtime-v067-20261018]
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  locked:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 3
+          persist-credentials: true
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 24.11.0
+      - name: Ensure isolated upstream v0.67 ancestry
+        run: |
+          git merge-base --is-ancestor 59aafb49eed27f7109e795b099d369b1c05af716 HEAD
+          test "$(git branch --show-current)" = "security/s1-mcp-runtime-v067-20261018"
+      - name: Update ONLY exact lockfile with authorized npm registry
+        run: |
+          npm install --package-lock-only --ignore-scripts --no-audit --no-fund --save-exact
+          git diff --check
+          git diff --name-only | grep -x 'package-lock.json'
+          test "$(git diff --name-only | wc -l)" -eq 1
+      - name: Prove npm clean install
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Print resolved security package versions
+        run: |
+          node - <<'JS'
+          const l=require('./package-lock.json').packages;
+          for(const x of ['proxy-addr','@modelcontextprotocol/client','@modelcontextprotocol/server','@modelcontextprotocol/node','@modelcontextprotocol/core','undici','@earendil-works/pi-coding-agent/node_modules/undici','@earendil-works/pi-coding-agent/node_modules/brace-expansion']){
+            console.log('S1_LOCK',x,l['node_modules/'+x]?.version||'ABSENT');
+          }
+          JS
+      - name: Online audit snapshot after lock changes
+        run: |
+          npm audit --json > audit-full.json || true
+          npm audit --omit=dev --json > audit-prod.json || true
+          node - <<'JS'
+          const fs=require('node:fs');
+          for(const x of ['audit-full.json','audit-prod.json']){
+            const a=JSON.parse(fs.readFileSync(x,'utf8'));console.log('S1_AUDIT',x,JSON.stringify(a.metadata?.vulnerabilities),JSON.stringify(a.error||null));
+          }
+          JS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: s1-lockfile-audit
+          path: audit-*.json
+          retention-days: 14
+      - name: Commit only reviewed manifest resolution to S1
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add package-lock.json
+          git commit -m 'chore(security): lock compatible patched dependencies'
+          git push origin HEAD:security/s1-mcp-runtime-v067-20261018
