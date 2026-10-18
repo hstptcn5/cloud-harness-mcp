@@ -57,3 +57,57 @@ jobs:
           name: orion-m1-post-prune-${{ matrix.image }}
           path: image-${{ matrix.image }}-*.json
           retention-days: 14
+
+  mcp-bounded-probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 10
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 24.11.0
+      - name: Build API only for bounded local HTTP test
+        run: |
+          git diff --quiet 4cb540ac925aa113542861f65331cdb81c4760df HEAD -- package-lock.json apps/api/package.json apps/runner/package.json
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm run build -w @cloud-harness/contracts
+          npm run build -w @cloud-harness/api
+      - name: Bounded MCP batch and trust-proxy probe against loopback only
+        run: |
+          node --input-type=module <<'JS'
+          import {createServer} from 'node:http';
+          import {once} from 'node:events';
+          import {createApiApp} from './apps/api/dist/app.js';
+          const bearer='m1-audit-owner-token-longer-than-32-chars';
+          const cfg={
+            host:'127.0.0.1',port:0,ownerId:'owner',bearerToken:bearer,runnerUrl:'http://127.0.0.1:1',
+            runnerToken:'m1-test-runner-service-token-longer-32',
+            publicHosts:['127.0.0.1'],allowedOrigins:[],requestTimeoutMs:5000,maxBodyBytes:1048576,
+            mcpGatewayTimeoutMs:30000,mcpGatewayMaxResponseBytes:262144,mcpGatewayMaxToolsPerServer:500,
+            mcpGatewayMaxSchemaBytes:65536,mcpGatewayMaxCatalogBytes:2097152,mcpGatewayMaxTraceRows:20000,
+            mcpGatewayMaxConnections:32,mcpGatewayAllowInsecureHttp:false,mcpGatewayAllowPrivateEndpoints:false
+          };
+          const rt=createApiApp(cfg);
+          const srv=createServer(rt.app);
+          try{
+            srv.listen(0,'127.0.0.1');await once(srv,'listening');
+            const port=srv.address().port;
+            const batch=Array.from({length:101},(_,i)=>({jsonrpc:'2.0',method:'ping',id:i+1,params:{}}));
+            const payload=JSON.stringify(batch);
+            if(Buffer.byteLength(payload)>20000)throw Error('probe unexpectedly oversized');
+            const response=await fetch('http://127.0.0.1:'+port+'/mcp',{
+              method:'POST',headers:{authorization:'Bearer '+bearer,'content-type':'application/json',
+                accept:'application/json, text/event-stream','mcp-protocol-version':'2026-07-28'},
+              body:payload,signal:AbortSignal.timeout(4000)
+            });
+            const body=await response.text();
+            console.log('MCP_BATCH_PROBE',JSON.stringify({batchLength:batch.length,bodyBytes:payload.length,
+              httpStatus:response.status,contentType:response.headers.get('content-type'),
+              resultPrefix:body.slice(0,350),trustProxy:rt.app.get('trust proxy')}));
+          } finally {
+            await rt.close();
+            if(srv.listening)await new Promise(resolve=>srv.close(resolve));
+          }
+          JS
