@@ -99,7 +99,7 @@ jobs:
             if(Buffer.byteLength(payload)>20000)throw Error('probe unexpectedly oversized');
             const response=await fetch('http://127.0.0.1:'+port+'/mcp',{
               method:'POST',headers:{authorization:'Bearer '+bearer,'content-type':'application/json',
-                accept:'application/json, text/event-stream','mcp-protocol-version':'2026-07-28'},
+                accept:'application/json, text/event-stream','mcp-protocol-version':'2025-11-25'},
               body:payload,signal:AbortSignal.timeout(4000)
             });
             const body=await response.text();
