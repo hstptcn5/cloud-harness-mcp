@@ -61,7 +61,13 @@ describe('MCP v2.3 security boundaries',()=>{
   it('keeps per-request server isolation and authenticated tool discovery',async()=>{
     const client=new Client({name:'s1-interop',version:'1.0.0'});
     await client.connect(new StreamableHTTPClientTransport(new URL(url),{requestInit:{headers:{authorization:`Bearer ${token}`}}}));
-    try {expect((await client.listTools()).tools).toHaveLength(TOOL_SPECS.length);}
+    try {
+      const listed = (await client.listTools()).tools;
+      // Security patch is also tested against Orion M1's extra fileParams tool:
+      // require every upstream tool but do not forbid correctly registered extensions.
+      expect(listed.length).toBeGreaterThanOrEqual(TOOL_SPECS.length);
+      for (const spec of TOOL_SPECS) expect(listed.some(tool => tool.name === spec.name)).toBe(true);
+    }
     finally {await client.close();}
     const unauthorized=await send(ping(2),false);
     expect(unauthorized.status).toBe(401);
