@@ -1,0 +1,40 @@
+name: S1 verify agent nested npm overrides
+on:
+  push:
+    branches: [test/s1-agent-override-check-20261018]
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 24.11.0
+      - name: Compare current and clean resolution without mutating repository
+        run: |
+          set -e
+          show() {
+            STAGE="$1" node - <<'JS'
+          const p=require('./package-lock.json').packages;
+          const root='node_modules/@earendil-works/pi-coding-agent/node_modules/';
+          console.log('S1_RESOLVE',process.env.STAGE,JSON.stringify({agent:p['node_modules/@earendil-works/pi-coding-agent']?.version,undici:p[root+'undici']?.version,brace:p[root+'brace-expansion']?.version}));
+          JS
+          }
+          show baseline
+          cp package-lock.json /tmp/s1-security-lock.json
+          node - <<'JS'
+          const fs=require('fs');const lock=JSON.parse(fs.readFileSync('package-lock.json','utf8'));
+          for(const key of Object.keys(lock.packages)){if(key==='node_modules/@earendil-works/pi-coding-agent'||key.startsWith('node_modules/@earendil-works/pi-coding-agent/node_modules/'))delete lock.packages[key];}
+          fs.writeFileSync('package-lock.json',JSON.stringify(lock,null,2)+'\n');
+          JS
+          npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+          show parent_resolved
+          cp /tmp/s1-security-lock.json package-lock.json
+          rm package-lock.json
+          npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+          show clean_resolved
+          git diff --numstat package-lock.json
+          npm ci --ignore-scripts --no-audit --no-fund
