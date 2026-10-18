@@ -105,7 +105,7 @@ const sanitized={
   }])),
   evidenceNote:'No credentials or host paths in this resolved Compose summary. Source: docker compose config --format json.'
 };
-writeFileSync('staging-resolved-agentless-sanitized.json',JSON.stringify(sanitized,null,2)+'\\n');
+writeFileSync('staging-resolved-agentless-sanitized.json',JSON.stringify(sanitized,null,2));
 console.log(JSON.stringify({check:'PASS',candidate:commit,services:Object.keys(config.services),agentsEnabled:false,
   agentOperationFailures:6,publishedPorts:ports.length,ingressBind:'loopback-only',
   imageTags:[config.services.api.image,config.services.runner.image,config.services.runner.environment.EXECUTOR_IMAGE]}));
