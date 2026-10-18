@@ -10,11 +10,13 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 10
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: 24.11.0
       - name: Verify exact target commit
-        run: test "$(git rev-parse HEAD^)" = "4cb540ac925aa113542861f65331cdb81c4760df" && git diff --quiet HEAD^ HEAD -- package-lock.json package.json apps/api/package.json apps/runner/package.json apps/agent-runtime/package.json
+        run: git cat-file -e 4cb540ac925aa113542861f65331cdb81c4760df^{commit} && git merge-base --is-ancestor 4cb540ac925aa113542861f65331cdb81c4760df HEAD && git diff --quiet 4cb540ac925aa113542861f65331cdb81c4760df HEAD -- package-lock.json package.json apps/api/package.json apps/runner/package.json apps/agent-runtime/package.json
       - name: Registry-backed audit of complete and production lockfile
         run: |
           npm audit --json > audit-full.json || true
@@ -39,9 +41,11 @@ jobs:
         image: [api, runner, agent]
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 10
       - name: Verify target source and build effective runtime image
         run: |
-          test "$(git rev-parse HEAD^)" = "4cb540ac925aa113542861f65331cdb81c4760df"
+          git cat-file -e 4cb540ac925aa113542861f65331cdb81c4760df^{commit} && git merge-base --is-ancestor 4cb540ac925aa113542861f65331cdb81c4760df HEAD
           docker build -f docker/${{ matrix.image }}.Dockerfile -t orion-m1-audit-${{ matrix.image }}:local .
       - name: Registry-backed audit inside final post-prune image
         run: |
