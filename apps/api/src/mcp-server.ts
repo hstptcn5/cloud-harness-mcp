@@ -82,6 +82,11 @@ function unauthenticated(): RunnerResponse {
   };
 }
 
+// SDK advisory GHSA-46jr-4wx8-v453: opt-in bound for array elements and
+// object keys across one tool call. The largest current request schemas are
+// also constrained by the 1 MiB HTTP parser and operation-specific limits.
+export const MCP_MAX_TOOL_INPUT_ELEMENTS = 10_000;
+
 const DEFAULT_INSTRUCTIONS = 'Open an owner-bound workspace first, pass its opaque workspaceId to later tools, and close it when finished. '
   + 'Before planning work, call skills_list and read the matching skill with skills_read; skills that ship a script are run through skills_run with the digest that skills_list returned.';
 
@@ -104,7 +109,7 @@ export function createCloudHarnessServer(
 
   const server = new McpServer(
     { name: 'cloud-harness-mcp', version: '0.67.0' },
-    { instructions }
+    { instructions, maxToolInputElements: MCP_MAX_TOOL_INPUT_ELEMENTS }
   );
 
   for (const spec of TOOL_SPECS) {

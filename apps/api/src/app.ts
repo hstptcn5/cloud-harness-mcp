@@ -45,14 +45,14 @@ export function createApiApp(config: ApiConfig, overrides: ApiAppOverrides = {})
     sender: events.sender,
     onError: (stage, reason) => apiLogger.warn({ stage, reason }, 'MCP event delivery pass failed')
   });
-  const handler = createMcpHandler(createCloudHarnessServerFactory(runnerClient, events), { legacy: 'stateless', responseMode: 'auto' });
+  const handler = createMcpHandler(createCloudHarnessServerFactory(runnerClient, events), { legacy: 'stateless', responseMode: 'auto', maxRequestBodySize: config.maxBodyBytes });
   const nodeHandler = toNodeHandler(handler);
-  const boundHandler = createMcpHandler(createWorkspaceBoundServerFactory(runnerClient, events), { legacy: 'stateless', responseMode: 'auto' });
+  const boundHandler = createMcpHandler(createWorkspaceBoundServerFactory(runnerClient, events), { legacy: 'stateless', responseMode: 'auto', maxRequestBodySize: config.maxBodyBytes });
   const boundNodeHandler = toNodeHandler(boundHandler);
   const gateway = createMcpGateway(config, runnerClient, {
     ...(overrides.gatewayFetchImpl ? { fetchImpl: overrides.gatewayFetchImpl } : {})
   });
-  const gatewayHandler = createMcpHandler(gateway.factory, { legacy: 'stateless', responseMode: 'auto' });
+  const gatewayHandler = createMcpHandler(gateway.factory, { legacy: 'stateless', responseMode: 'auto', maxRequestBodySize: config.maxBodyBytes });
   const gatewayNodeHandler = toNodeHandler(gatewayHandler);
   app.disable('x-powered-by');
   app.get('/healthz', (_request, response) => response.json({ status: 'ok' }));
