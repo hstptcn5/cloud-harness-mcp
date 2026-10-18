@@ -20,7 +20,7 @@ const ChatFileToolInput = z.object({
 }).strict();
 
 function failure(code: ChatFileImportError['code'], message: string): RunnerResponse {
-  return { ok: false, message, error: { code, message, retryable: false }, truncated: false };
+  return { ok: false, message, error: { code, message, retryable: code === 'UNAVAILABLE' || code === 'TIMEOUT' }, truncated: false };
 }
 
 /**
@@ -57,13 +57,20 @@ export function registerChatFileImportTool(
       // evaluates the owner/principal, workspace lifecycle and explicit binding.
       const authorized = await backend.call('workspace_status', input.workspaceId ? { workspaceId: input.workspaceId } : {}, context.mcpReq.signal);
       if (!authorized.ok) return resultToMcp(authorized);
+      // Pin the exact owner-authorized workspace before fetching any file bytes.
+      // An omitted workspaceId must not resolve to another workspace during import.
+      const workspaceId = (authorized.data as { workspaceId?: unknown } | undefined)?.workspaceId;
+      if (!WorkspaceIdSchema.safeParse(workspaceId).success ||
+          (input.workspaceId && input.workspaceId !== workspaceId)) {
+        return resultToMcp(failure('FORBIDDEN', 'Workspace authorization did not resolve to a stable workspace'));
+      }
       const image = await (dependencies.download ?? downloadChatImage)(input.source_image, {
         ...(input.expectedSha256 ? { expectedSha256: input.expectedSha256 } : {}),
         ...(context.mcpReq.signal ? { signal: context.mcpReq.signal } : {})
       });
       // No URL or file bytes are returned in MCP output, logs, or job metadata.
       const result = await backend.call('asset_import', {
-        ...(input.workspaceId ? { workspaceId: input.workspaceId } : {}),
+        workspaceId,
         path: input.path,
         kind: image.kind,
         contentBase64: image.bytes.toString('base64'),
@@ -74,13 +81,16 @@ export function registerChatFileImportTool(
       return resultToMcp({
         ...result,
         data: {
+          workspaceId,
           path: input.path,
           sha256: image.sha256,
           sizeBytes: image.bytes.length,
           mimeType: image.mimeType,
           sourceFileId: input.source_image.file_id,
           creatorVerified: false,
-          imported: true
+          imported: true,
+          alreadyImported: (result.data as { alreadyImported?: unknown } | undefined)?.alreadyImported === true,
+          status: (result.data as { alreadyImported?: unknown } | undefined)?.alreadyImported === true ? 'ALREADY_IMPORTED' : 'IMPORTED'
         }
       });
     } catch (err) {

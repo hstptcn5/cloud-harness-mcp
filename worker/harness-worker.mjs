@@ -1,6 +1,6 @@
 import { createHash, randomBytes } from 'node:crypto';
-import { existsSync, realpathSync, writeFileSync } from 'node:fs';
-import { chmod, cp, link, lstat, mkdir, readFile, readdir, realpath, rename, rm, stat, writeFile } from 'node:fs/promises';
+import { constants as fsConstants, existsSync, realpathSync, writeFileSync } from 'node:fs';
+import { chmod, cp, link, lstat, mkdir, open, readFile, readdir, realpath, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { spawn } from 'node:child_process';
@@ -973,15 +973,35 @@ const handlers = {
     catch { return fail('INVALID_INPUT', 'destination path escapes workspace'); }
     const folder = dirname(target);
     const temporary = join(folder, `.cloud-harness-image-${process.pid}-${randomBytes(8).toString('hex')}.tmp`);
+    // A repeated delivery of the exact same bytes is a successful no-op. Do not
+    // trust an existing filename or follow a final symlink; verify the stored bytes.
+    const verifyExisting = async () => {
+      let handle;
+      try {
+        await safeBatchFilePath(input.path, false);
+        handle = await open(target, fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW);
+        const info = await handle.stat();
+        if (!info.isFile() || info.size !== bytes.length || sha256(await handle.readFile()) !== digest) {
+          return fail('CONFLICT', 'destination contains different image bytes');
+        }
+        return ok('Identical image already imported', {
+          path: input.path, sha256: digest, sizeBytes: bytes.length, format: actual, alreadyImported: true
+        });
+      } catch {
+        return fail('CONFLICT', 'destination cannot be safely reused');
+      } finally {
+        await handle?.close().catch(() => {});
+      }
+    };
     try {
       await mkdir(folder, { recursive: true });
       await safeBatchFilePath(input.path, false);
       await writeFile(temporary, bytes, { flag: 'wx', mode: 0o600 });
       // link() fails with EEXIST, including for existing symlinks: never replace a prior file.
       await link(temporary, target);
-      return ok('Image imported without overwrite', { path: input.path, sha256: digest, sizeBytes: bytes.length, format: actual });
+      return ok('Image imported without overwrite', { path: input.path, sha256: digest, sizeBytes: bytes.length, format: actual, alreadyImported: false });
     } catch (error) {
-      if (error?.code === 'EEXIST') return fail('CONFLICT', 'destination file already exists');
+      if (error?.code === 'EEXIST') return await verifyExisting();
       return fail('INVALID_INPUT', 'image destination could not be created safely');
     } finally {
       await rm(temporary, { force: true }).catch(() => {});

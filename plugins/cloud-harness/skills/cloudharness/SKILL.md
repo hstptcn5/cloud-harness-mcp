@@ -205,6 +205,7 @@ poll `tasks_status`, `operation_wait`, or `agent_status` instead.
 | --- | --- | --- |
 | Check permissions / push authority | `workspace_capabilities` | attempt mutation and catch failure |
 | Known file inspection/edit | `files_*`, `grep_search`, `symbols_*` | `exec_run` |
+| ChatGPT-authorized original image intake (after feature rollout) | `orion_import_chat_file` with `openai/fileParams` | Owner-approved Dashboard upload if host does not expose the generated image as a file |
 | Multi-file scaffolding | `files_write_batch` | multiple `files_write` or shell scripts |
 | Single command | `exec_run` | persistent shell/session |
 | Command with no checkout or network | `bash` with `target: "toolbox"` | `exec_run` in a workspace |

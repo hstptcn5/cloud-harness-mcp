@@ -6,6 +6,7 @@ import { createHash } from 'node:crypto';
 import type { RunnerResponse } from '@cloud-harness/contracts';
 import type { OperationBackend } from '../src/operation-backend.js';
 import { registerChatFileImportTool } from '../src/chat-file-import-tool.js';
+import { ChatFileImportError, type DownloadedChatImage } from '../src/chat-file-download.js';
 import { resultToMcp } from '../src/mcp-server.js';
 
 const tinyPng = Buffer.from([137,80,78,71,13,10,26,10,0,0,0,0,73,72,68,82]);
@@ -22,14 +23,14 @@ const sample = {
   }
 };
 
-async function connect(backend: OperationBackend, authenticated = true) {
+async function connect(backend: OperationBackend, authenticated = true, downloadOverride?: () => Promise<DownloadedChatImage>) {
   const server = new McpServer({ name: 'file-test', version: '1.0.0' });
   let downloaded = 0;
   registerChatFileImportTool(server, backend, {
     resultToMcp,
     download: async () => {
       downloaded++;
-      return { bytes: tinyPng, sha256: sha, kind: 'png', mimeType: 'image/png' };
+      return downloadOverride ? await downloadOverride() : { bytes: tinyPng, sha256: sha, kind: 'png', mimeType: 'image/png' };
     }
   }, authenticated);
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
@@ -50,7 +51,9 @@ describe('ChatGPT fileParams to bound owner asset_import', () => {
       const file = (t!.inputSchema.properties!.source_image as { properties: object; required: string[] });
       expect(Object.keys(file.properties)).toEqual(expect.arrayContaining(['file_id','download_url','mime_type','file_name']));
       expect(file.required).toEqual(expect.arrayContaining(['file_id','download_url']));
+      expect(file.required).toEqual(expect.arrayContaining(['file_id','download_url']));
       expect(file.required).not.toContain('file_name');
+      expect(file.required).not.toContain('mime_type');
     } finally { await c.close(); }
   });
 
@@ -59,8 +62,8 @@ describe('ChatGPT fileParams to bound owner asset_import', () => {
     const backend: OperationBackend = {
       async call(op, input): Promise<RunnerResponse> {
         operations.push({ op, input });
-        if(op === 'workspace_status') return { ok:true, message:'ok', truncated:false };
-        if(op === 'asset_import') return { ok:true, message:'stored', truncated:false, data: { path: input.path } };
+        if(op === 'workspace_status') return { ok:true, message:'ok', truncated:false, data: { workspaceId: sample.workspaceId } };
+        if(op === 'asset_import') return { ok:true, message:'stored', truncated:false, data: { path: input.path, alreadyImported: false } };
         throw Error('unexpected');
       }
     };
@@ -74,9 +77,62 @@ describe('ChatGPT fileParams to bound owner asset_import', () => {
       expect(entry.expectedSha256).toBe(sha);
       expect(entry.overwrite).toBe(false);
       expect(entry.path).toBe(sample.path);
+      expect(entry.workspaceId).toBe(sample.workspaceId);
+      expect(res.structuredContent?.data).toEqual(expect.objectContaining({
+        workspaceId: sample.workspaceId, path: sample.path, sha256: sha, sizeBytes: tinyPng.length,
+        status: 'IMPORTED', alreadyImported: false, creatorVerified: false
+      }));
       expect(Buffer.from(String(entry.contentBase64),'base64')).toEqual(tinyPng);
       expect(JSON.stringify(res)).not.toContain('temporary?secret');
     } finally { await c.close(); }
+  });
+
+  it('pins an implicitly resolved workspace and reports idempotent replay without a new write', async () => {
+    const operations: { op: string; input: Record<string, unknown> }[] = [];
+    const backend: OperationBackend = {
+      async call(op, input): Promise<RunnerResponse> {
+        operations.push({ op, input });
+        if (op === 'workspace_status') return { ok:true, message:'ok', truncated:false, data:{ workspaceId:sample.workspaceId } };
+        if (op === 'asset_import') return { ok:true, message:'identical', truncated:false, data:{ alreadyImported:true } };
+        throw Error('unexpected');
+      }
+    };
+    const c = await connect(backend);
+    try {
+      const {workspaceId:_omitted,...withoutWorkspace} = sample;
+      const res=await c.client.callTool({name:'orion_import_chat_file',arguments:withoutWorkspace});
+      expect(res.isError).toBe(false);
+      expect(operations.map(x=>x.op)).toEqual(['workspace_status','asset_import']);
+      expect(operations[1]!.input.workspaceId).toBe(sample.workspaceId);
+      expect(res.structuredContent?.data).toEqual(expect.objectContaining({
+        workspaceId:sample.workspaceId, sha256:sha, alreadyImported:true, status:'ALREADY_IMPORTED'
+      }));
+    } finally {await c.close();}
+  });
+
+  it('refuses an inconsistent or missing authorized workspace identity before download',async()=>{
+    const backend:OperationBackend={
+      async call():Promise<RunnerResponse>{return {ok:true,message:'ok',truncated:false,data:{workspaceId:'ws_XXXXXXXXXXXXXXXXXXXXXXXXXXXXX'}};}
+    };
+    const c=await connect(backend);
+    try {
+      const result=await c.client.callTool({name:'orion_import_chat_file',arguments:sample});
+      expect(result.isError).toBe(true);
+      expect(c.downloaded()).toBe(0);
+    } finally {await c.close();}
+  });
+
+  it('returns retryable unavailable/expired-file failures without exposing temporary URLs',async()=>{
+    const backend:OperationBackend={
+      async call():Promise<RunnerResponse>{return {ok:true,message:'ok',truncated:false,data:{workspaceId:sample.workspaceId}};}
+    };
+    const c=await connect(backend,true,async()=>{throw new ChatFileImportError('UNAVAILABLE','Temporary ChatGPT file expired');});
+    try {
+      const result=await c.client.callTool({name:'orion_import_chat_file',arguments:sample});
+      expect(result.isError).toBe(true);
+      expect(result.structuredContent?.error).toEqual(expect.objectContaining({code:'UNAVAILABLE',retryable:true}));
+      expect(JSON.stringify(result)).not.toContain('temporary?secret');
+    } finally {await c.close();}
   });
 
   it('denies unauthenticated callers or unauthorized workspace before fetching', async () => {

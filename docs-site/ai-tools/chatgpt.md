@@ -60,6 +60,12 @@ Full MCP execution (including write/execute operations such as `workspace_open` 
 
 ---
 
+## Orion-Asset image attachment handoff (M1 pilot)
+
+The proposed `orion_import_chat_file` tool uses ChatGPT's `openai/fileParams` file attachment input rather than accepting an arbitrary caller-supplied image URL. Once a deployment has installed the API, Runner and executor with this feature, **rescan/refresh the CloudHarness connector's tools and start a fresh ChatGPT conversation**. Confirm that `orion_import_chat_file` is discoverable before trying to import. File input requires a host-authorized file object (`download_url`, `file_id`, optionally `mime_type` and `file_name`), a workspace-relative destination `path`, and optionally a `workspaceId` and independently known `expectedSha256`.
+
+A successful result reports the verified `sha256`, `sizeBytes`, `workspaceId`, `path` and whether this was a new import (`IMPORTED`) or identical retry (`ALREADY_IMPORTED`). A repeated upload with different bytes at the same path is rejected. An expired file URL needs a new host authorization rather than replaying the expired URL. Temporary file URLs and bytes are not included in the tool result. **Import success does not prove ChatGPT Image authorship, source artistic quality or approval.** ChatGPT Image output may not be offered by the host as fileParams; the pilot must verify an actual newly generated file and compare original vs imported SHA-256. Until that real pilot succeeds, classify the integration as `BLOCKED_HOST_VALIDATION` and use the owner-approved Dashboard upload as fallback.
+
 ## 3. Task and Agent Notifications (MCP Events)
 
 The remote endpoint `https://harness.zuey.me/mcp` advertises the MCP Events capability, so ChatGPT can subscribe to Cloud Harness events instead of polling. ChatGPT creates and refreshes these subscriptions itself; you never paste a webhook URL or secret, and the dashboard never creates one.
