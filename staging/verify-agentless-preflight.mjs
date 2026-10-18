@@ -49,8 +49,8 @@ const ports=config.services.ingress.ports??[];
 assert.equal(ports.length,1);
 assert.equal(ports[0].host_ip,'127.0.0.1');
 assert.equal(String(ports[0].published),'39333');
-assert(config.services.api.networks['image-egress']);
-assert(config.services.runner.networks['git-egress']);
+assert(Object.hasOwn(config.services.api.networks,'image-egress'));
+assert(Object.hasOwn(config.services.runner.networks,'git-egress'));
 
 // Verify the ACTUAL Runner config loader, not just Compose text. Use no real secrets.
 const prev={...process.env};
