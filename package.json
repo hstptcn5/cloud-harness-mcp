@@ -57,9 +57,7 @@
     "bench:decision-plane": "npm run build -w @cloud-harness/contracts && RUN_DECISION_PLANE_BENCHMARK=true vitest run test/benchmarks/decision-plane.bench.test.ts"
   },
   "overrides": {
-    "proxy-addr": "2.0.8",
-    "brace-expansion@5.0.9": "5.0.12",
-    "undici@8.9.0": "8.10.2"
+    "proxy-addr": "2.0.8"
   },
   "devDependencies": {
     "@semantic-release/changelog": "7.0.0",
