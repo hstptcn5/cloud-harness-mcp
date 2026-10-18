@@ -24,6 +24,17 @@ jobs:
           test "$(git branch --show-current)" = "security/s1-mcp-runtime-v067-20261018"
       - name: Update ONLY exact lockfile with authorized npm registry
         run: |
+          # npm can retain old transitive lock entries after an override changes.
+          # Invalidate only the three affected resolution nodes, then re-resolve.
+          node - <<'JS'
+          const fs=require('node:fs'); const lock=JSON.parse(fs.readFileSync('package-lock.json','utf8'));
+          for(const key of [
+            'node_modules/proxy-addr',
+            'node_modules/@earendil-works/pi-coding-agent/node_modules/brace-expansion',
+            'node_modules/@earendil-works/pi-coding-agent/node_modules/undici'
+          ]) delete lock.packages[key];
+          fs.writeFileSync('package-lock.json',JSON.stringify(lock,null,2)+'\\n');
+          JS
           npm install --package-lock-only --ignore-scripts --no-audit --no-fund --save-exact
           git diff --check
           git diff --name-only | grep -x 'package-lock.json'
