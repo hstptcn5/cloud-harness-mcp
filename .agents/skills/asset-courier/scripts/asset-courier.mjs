@@ -1,7 +1,9 @@
+import { Buffer } from 'node:buffer';
 import { createHash } from 'node:crypto';
 import { constants } from 'node:fs';
-import { mkdir, lstat, open, readFile, rm, writeFile } from 'node:fs/promises';
-import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
+import { mkdir, lstat, open, rm, writeFile } from 'node:fs/promises';
+import { dirname, join, resolve, sep } from 'node:path';
+import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 
 const MAX_ASSETS = 64;
