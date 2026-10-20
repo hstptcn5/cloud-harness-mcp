@@ -27,7 +27,7 @@ jobs:
       - run: bash -n worker/clone-helper.sh worker/task-runner.sh worker/shell-runner.sh worker/worker-runner.sh worker/gh-helper.sh deploy/scripts/bootstrap-vps.sh deploy/scripts/deploy-release.sh deploy/scripts/release-runtime.sh deploy/scripts/rollback-release.sh deploy/scripts/deploy-ssh-wrapper.sh deploy/scripts/upgrade-nginx-dashboard.sh
       - run: npm run verify:compose
       - name: Verify ChatGPT image byte-transfer security
-        run: node --test worker/test/asset-chat-file-download.node.mjs worker/test/asset-chat-file-import.node.mjs
+        run: node --test worker/test/asset-chat-file-download.node.mjs worker/test/asset-chat-file-import.node.mjs worker/test/asset-courier.node.mjs
       - run: npm run verify
       - name: Verify documentation and reference integrity
         run: |
