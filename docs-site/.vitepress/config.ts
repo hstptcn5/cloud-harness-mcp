@@ -113,6 +113,7 @@ export default defineConfig({
         items: [
           { text: 'Overview & Matrix', link: '/ai-tools/overview' },
           { text: 'ChatGPT', link: '/ai-tools/chatgpt' },
+          { text: 'Asset Courier', link: '/ai-tools/asset-courier' },
           { text: 'Claude Desktop', link: '/ai-tools/claude' },
           { text: 'Claude Code', link: '/ai-tools/claude-code' },
           { text: 'Cursor', link: '/ai-tools/cursor' },
