@@ -63,6 +63,10 @@ parity, eval cases, and manifest versions. Automated releases update the
 Claude/OpenAI plugin manifests and Claude marketplace entry together with the
 runtime package versions.
 
+## Opt-in local CI on your own Docker host
+
+For a separate, cache-backed Node CI worker that does **not** consume GitHub-hosted runner minutes, see [Local CI Worker M1](local-ci-worker.md). It requires an explicit operator-side Docker Compose invocation and does not replace CloudHarness workspace task execution or required GitHub branch checks yet. The production Compose stack remains unchanged.
+
 ## Docker-backed verification
 
 Build the fixed executor and service images before Docker tests:
