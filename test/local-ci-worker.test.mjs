@@ -9,7 +9,9 @@ import { parseArgs, resolveOptions, dockerArgs } from '../scripts/local-ci.mjs';
 test('allowlisted profiles, required test script and optional checks', () => {
   assert.deepEqual(stepsFor('node-basic', { test: 'node --test' }), ['npm-ci', 'test']);
   assert.deepEqual(stepsFor('node-build', { check: 'node --check x.js', test: 'node --test', build: 'vite build' }), ['npm-ci', 'check', 'test', 'build']);
+  assert.deepEqual(stepsFor('node-basic', { test: 'node --test' }, {hasLockfile:false}), ['npm-install', 'test']);
   assert.throws(() => stepsFor('danger', { test: 'test' }), /Unsupported/);
+  assert.throws(() => stepsFor('constructor', { test: 'test' }), /Unsupported/);
   assert.throws(() => stepsFor('node-basic', {}), /test script/);
 });
 
@@ -29,6 +31,10 @@ test('checkouts must not mix cache or reports with source and avoid path reuse',
     fs.writeFileSync(path.join(repo, 'package-lock.json'), '{}');
     const good = resolveOptions({ repo, profile: 'node-basic', cache: path.join(base, 'cache'), reports: path.join(base, 'reports') });
     assert.equal(good.repo, repo);
+    assert.equal(good.hasLockfile, true);
+    fs.rmSync(path.join(repo, 'package-lock.json'));
+    const withoutLockfile = resolveOptions({ repo, profile: 'node-basic', cache: path.join(base, 'cache'), reports: path.join(base, 'reports') });
+    assert.equal(withoutLockfile.hasLockfile, false);
     assert.throws(() => resolveOptions({ repo, profile: 'node-basic', cache: path.join(repo, 'cache'), reports: path.join(base, 'reports') }), /outside/);
     assert.throws(() => resolveOptions({ repo, profile: 'node-basic', cache: path.join(base, 'cache'), reports: path.join(base, 'cache') }), /separate/);
   } finally { fs.rmSync(base, { recursive: true, force: true }); }
@@ -40,6 +46,7 @@ test('real Git checkout, mock step execution: PASS and SHA-based log evidence', 
     const root = path.join(base, 'repo');
     fs.mkdirSync(root);
     fs.writeFileSync(path.join(root, 'package.json'), JSON.stringify({ scripts: { test: 'node --test', check: 'node --check test.js' } }));
+    fs.writeFileSync(path.join(root, 'package-lock.json'), '{}'); // mock installer: exercise lockfile plan selection
     const { execFileSync } = await import('node:child_process');
     execFileSync('git', ['init', '-q'], { cwd: root });
     execFileSync('git', ['-c', 'user.email=ci@example.invalid', '-c', 'user.name=CI Test', 'commit', '--allow-empty', '-qm', 'fixture'], { cwd: root });
@@ -86,6 +93,41 @@ test('actual offline npm ci + npm test runs locally with no GitHub Actions', asy
       else process.env.npm_config_offline = oldOffline;
     }
   } finally { fs.rmSync(base, { recursive: true, force: true }); }
+});
+
+test('lockfile-free checkout: actual offline npm install and Node tests without creating a lockfile', async () => {
+  const base = fs.mkdtempSync(path.join(os.tmpdir(), 'local-ci-nolock-'));
+  const root = path.join(base, 'repo');
+  try {
+    fs.mkdirSync(root);
+    fs.writeFileSync(path.join(root, 'package.json'), JSON.stringify({
+      name: 'local-ci-no-lock', version: '1.0.0',
+      type: 'module', scripts: {check:'node --check smoke.mjs', test:'node smoke.mjs'}
+    }));
+    fs.writeFileSync(path.join(root, 'smoke.mjs'),
+      "import assert from 'node:assert/strict'; assert.equal(6 * 7, 42); console.log('NO_LOCK_TEST_EXECUTED');\n");
+    const {execFileSync} = await import('node:child_process');
+    execFileSync('git', ['init', '-q'], {cwd:root});
+    execFileSync('git', ['-c','user.email=ci@example.invalid','-c','user.name=CI Test','commit','--allow-empty','-qm','fixture'], {cwd:root});
+    const oldOffline = process.env.npm_config_offline;
+    process.env.npm_config_offline = 'true';
+    try {
+      const result = await runCI({root, reportsDir:path.join(base,'reports'), profile:'node-basic'});
+      assert.equal(result.status, 'PASS');
+      assert.equal(result.dependencyMode, 'UNLOCKED_NPM_INSTALL');
+      assert.equal(result.warnings.length, 1);
+      assert.deepEqual(result.steps.map(x=>x.name), ['npm-install','check','test']);
+      assert.ok(result.steps.every(x=>x.exitCode === 0));
+      assert.equal(fs.existsSync(path.join(root,'package-lock.json')), false);
+      const runDir = fs.readdirSync(path.join(base,'reports'))[0];
+      const report = JSON.parse(fs.readFileSync(path.join(base,'reports',runDir,'report.json'),'utf8'));
+      assert.equal(report.dependencyMode, 'UNLOCKED_NPM_INSTALL');
+      assert.match(fs.readFileSync(path.join(base,'reports',runDir,result.steps.at(-1).logFile),'utf8'), /NO_LOCK_TEST_EXECUTED/);
+    } finally {
+      if (oldOffline === undefined) delete process.env.npm_config_offline;
+      else process.env.npm_config_offline = oldOffline;
+    }
+  } finally {fs.rmSync(base, {recursive:true, force:true});}
 });
 
 test('failed npm command stops the pipeline and records FAIL', async () => {

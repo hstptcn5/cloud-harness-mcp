@@ -41,7 +41,6 @@ export function resolveOptions(options, { home = os.homedir() } = {}) {
     throw new Error('Source must be a Git checkout directory');
   }
   if (!fs.existsSync(path.join(repo, 'package.json'))) throw new Error('Expected a Node project (package.json)');
-  if (!fs.existsSync(path.join(repo, 'package-lock.json'))) throw new Error('Expected package-lock.json for npm ci');
   const base = path.resolve(home, '.cloudharness-local-ci');
   const cache = path.resolve(options.cache || path.join(base, 'cache'));
   const reports = path.resolve(options.reports || path.join(base, 'reports'));
@@ -55,7 +54,8 @@ export function resolveOptions(options, { home = os.homedir() } = {}) {
     throw new Error('Cache and reports must resolve outside the checkout');
   }
   if (inside(realCache, realReports) || inside(realReports, realCache)) throw new Error('Cache and reports must be separate');
-  return { repo, cache: realCache, reports: realReports, profile: options.profile };
+  return { repo, cache: realCache, reports: realReports, profile: options.profile,
+    hasLockfile: fs.existsSync(path.join(repo, 'package-lock.json')) || fs.existsSync(path.join(repo, 'npm-shrinkwrap.json')) };
 }
 
 export function dockerArgs(action, profile) {
@@ -84,6 +84,7 @@ export function main(argv) {
   if (parsed.command === 'doctor') {
     console.log('CI_COMPOSE_CONFIG_PASS; repo=' + options.repo);
     console.log('CACHE=' + options.cache + '; REPORTS=' + options.reports);
+    console.log('INSTALL_MODE=' + (options.hasLockfile ? 'npm ci (lockfile)' : 'npm install --no-package-lock --no-save (non-reproducible: no lockfile)'));
     return 0;
   }
   const buildStatus = launch('build', options.profile, env);

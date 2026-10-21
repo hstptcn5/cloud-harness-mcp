@@ -9,12 +9,14 @@ export const profiles = Object.freeze({
   'node-build': ['npm-ci', 'check', 'test', 'build']
 });
 
-export function stepsFor(profile, scripts) {
-  if (!(profile in profiles)) throw new Error('Unsupported CI profile: ' + profile);
+export function stepsFor(profile, scripts, { hasLockfile = true } = {}) {
+  if (!Object.hasOwn(profiles, profile)) throw new Error('Unsupported CI profile: ' + profile);
   if (typeof scripts?.test !== 'string' || !scripts.test.trim()) {
     throw new Error('package.json must declare a test script');
   }
-  return profiles[profile].filter(step => step === 'npm-ci' || step === 'test' || typeof scripts[step] === 'string');
+  return profiles[profile]
+    .map(step => step === 'npm-ci' && !hasLockfile ? 'npm-install' : step)
+    .filter(step => step === 'npm-ci' || step === 'npm-install' || step === 'test' || typeof scripts[step] === 'string');
 }
 
 function sha256(input) {
@@ -42,7 +44,8 @@ export function runCommand(command, args, { cwd, outputFile }) {
 
 export async function runCI({ root, reportsDir, profile, run = runCommand }) {
   const manifest = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
-  const steps = stepsFor(profile, manifest.scripts);
+  const hasLockfile = ['package-lock.json', 'npm-shrinkwrap.json'].some(file => fs.existsSync(path.join(root, file)));
+  const steps = stepsFor(profile, manifest.scripts, { hasLockfile });
   fs.mkdirSync(reportsDir, { recursive: true });
   const stamp = new Date().toISOString().replace(/[:.]/g, '-');
   const commitResult = await new Promise(resolve => {
@@ -58,7 +61,10 @@ export async function runCI({ root, reportsDir, profile, run = runCommand }) {
   fs.mkdirSync(dir, { recursive: false });
   const report = {
     schema: 'cloudharness-local-ci/v1', profile, commitSha: commitResult,
-    startedAt: new Date().toISOString(), status: 'RUNNING', steps: []
+    startedAt: new Date().toISOString(), status: 'RUNNING',
+    dependencyMode: hasLockfile ? 'LOCKED_NPM_CI' : 'UNLOCKED_NPM_INSTALL',
+    warnings: hasLockfile ? [] : ['No npm lockfile: dependency versions are not reproducible. Commit a valid lockfile for repeatable CI.'],
+    steps: []
   };
   const save = () => {
     const tmp = path.join(dir, 'report.json.tmp');
@@ -71,7 +77,9 @@ export async function runCI({ root, reportsDir, profile, run = runCommand }) {
       const command = 'npm';
       const args = step === 'npm-ci'
         ? ['ci', '--prefer-offline', '--no-audit', '--no-fund']
-        : ['run', step];
+        : step === 'npm-install'
+          ? ['install', '--no-save', '--no-package-lock', '--prefer-offline', '--no-audit', '--no-fund']
+          : ['run', step];
       const outputFile = path.join(dir, String(index + 1).padStart(2, '0') + '-' + step + '.log');
       const startedAt = new Date().toISOString();
       let outcome;

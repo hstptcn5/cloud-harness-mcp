@@ -2,7 +2,8 @@
 FROM node:24.11.0-bookworm-slim
 RUN apt-get update \
  && apt-get install -y --no-install-recommends git ca-certificates \
- && rm -rf /var/lib/apt/lists/*
+ && rm -rf /var/lib/apt/lists/* \
+ && git config --system --add safe.directory /work
 COPY scripts/local-ci-worker.mjs /opt/local-ci/worker.mjs
 USER node
 WORKDIR /work
