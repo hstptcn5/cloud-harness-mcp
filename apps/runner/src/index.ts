@@ -15,6 +15,7 @@ import { SecretKeyring } from './secret-keyring.js';
 import { createRunnerDecisionPlane } from './decision-plane/runner-decision-plane.js';
 import { StateStore } from './state-store.js';
 import { WorkspaceService } from './workspace-service.js';
+import { LocalCiBridge } from './local-ci-bridge.js';
 import { DockerAgentGatewayControl } from './agent-gateway-control.js';
 import { ModelProfileStateRepository } from './model-profile-state-repository.js';
 import { CloudflareAccessOAuthProvider } from './cloudflare-access-oauth-provider.js';
@@ -70,6 +71,7 @@ const decisionPlane = createRunnerDecisionPlane({
     metadata.recordAudit(principalId, action, subjectType, subjectId, generation, details)
 });
 service.useDecisionPlane(decisionPlane);
+service.useLocalCiBridge(LocalCiBridge.fromEnvironment());
 const controls = new DashboardControlService(config, store, metadata, artifacts, service, githubInstallations, githubBinding, modelProfiles, gatewayControl, keyring, decisionPlane);
 // A job row outlives the process that wrote it, so startup is where an import interrupted by a restart is
 // turned into a terminal state rather than left as a spinner that never ends.

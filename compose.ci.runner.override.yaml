@@ -1,0 +1,13 @@
+# Use with: docker compose -f compose.yaml -f compose.ci.runner.override.yaml up -d --no-deps runner
+# Never enable until the operator has provisioned the same token file used by ci-broker.
+services:
+  runner:
+    environment:
+      CI_BROKER_ENABLED: "true"
+      CI_BROKER_URL: http://local-ci-broker:4397
+      CI_BROKER_TOKEN_FILE: /run/local-ci/token
+    volumes:
+      - type: bind
+        source: ${CI_BROKER_TOKEN_HOST_FILE:?Set a private token file path}
+        target: /run/local-ci/token
+        read_only: true

@@ -288,6 +288,39 @@ List coding agents in a workspace with bounded pagination.
 <!-- cloudharness-example:agent_list
 {"limit":50}
 -->
+## Opt-in local CI through the trusted Runner
+
+<!-- cloudharness-tool:ci_run -->
+### `ci_run`
+
+- Required: `repoId` (operator allowlisted ID), `profile` (`node-basic` or `node-build`), `idempotencyKey`.
+- No workspace is required. This tool is disabled until the owner explicitly configures an authenticated Docker-side CI broker. It never accepts caller-chosen host paths, Docker command or shell arguments.
+- One job runs at a time. An accepted request returns a UUID. Reuse the **same** key and payload only to reconcile a lost response; choose a new key for a new job.
+- Only run trusted local checkouts. npm lifecycle/test scripts execute code and may read CI-broker mounts. Never use the CloudHarness owner/Runner token as the CI broker token.
+
+<!-- cloudharness-example:ci_run
+{"repoId":"command-center","profile":"node-basic","idempotencyKey":"ci-command-center-20261022-01"}
+-->
+
+<!-- cloudharness-tool:ci_status -->
+### `ci_status`
+
+- Required: `runId` returned by `ci_run`. Poll while RUNNING; absence of a result is not PASS.
+
+<!-- cloudharness-example:ci_status
+{"runId":"123e4567-e89b-42d3-a456-426614174000"}
+-->
+
+<!-- cloudharness-tool:ci_report -->
+### `ci_report`
+
+- Required: `runId`. Returns bounded structured check statuses, commit SHA and log digests, not raw logs. A still-running job is not a PASS.
+- Local CI does not replace GitHub required checks, Xcode iOS, Android, Go or browser tests automatically.
+
+<!-- cloudharness-example:ci_report
+{"runId":"123e4567-e89b-42d3-a456-426614174000"}
+-->
+
 ## Recovery and cleanup
 
 1. For a lost create response, reuse its original idempotency key.

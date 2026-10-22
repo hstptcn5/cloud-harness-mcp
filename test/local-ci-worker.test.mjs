@@ -13,6 +13,7 @@ test('allowlisted profiles, required test script and optional checks', () => {
   assert.throws(() => stepsFor('danger', { test: 'test' }), /Unsupported/);
   assert.throws(() => stepsFor('constructor', { test: 'test' }), /Unsupported/);
   assert.throws(() => stepsFor('node-basic', {}), /test script/);
+  assert.throws(() => stepsFor('node-build', {test:'node --test'}), /requires a build script/);
 });
 
 test('operator launcher rejects unsupported profile and duplicate flag', () => {

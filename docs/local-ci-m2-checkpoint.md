@@ -46,6 +46,10 @@ node scripts/local-ci-broker.mjs
 
 The broker starts only on loopback at port 4397; remote access and MCP invocation are **not enabled** by these steps. Never commit registry credentials, print tokens, or expose this listener to the internet.
 
+## M2.2 — Runner + MCP integration staged (2026-10-22)
+
+The follow-up branch adds operator-disabled-by-default `ci_run`, `ci_status`, `ci_report` contracts, a Runner-side authenticated bridge, a separate no-published-port Docker-side broker in `compose.ci.integrated.yaml`, and a Runner-only override. The earlier M2 host broker remains available in loopback mode. Code integration is **NOT** equivalent to deployment. See `docs/local-ci-runner-integration.md` for design, security warnings, operator setup and gates. Full typecheck/production verify and Windows Docker/ChatGPT MCP acceptance are still required. GitHub Actions and production remain unchanged.
+
 ## Remaining gates
 
 - LOCAL_BROKER_UNIT_TESTS: see run log

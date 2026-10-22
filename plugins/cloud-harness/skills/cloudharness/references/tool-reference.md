@@ -29,6 +29,12 @@ See [execution and tasks](execution-and-tasks.md).
 `tasks_status` `tasks_cancel` `tasks_graph` `operation_status`
 `operation_cancel` `operation_wait`
 
+## Opt-in local Docker CI
+
+See [execution and tasks](execution-and-tasks.md) and the operator setup in `docs/local-ci-runner-integration.md`.
+
+`ci_run` `ci_status` `ci_report`
+
 ## Managed toolbox packages
 
 See [managed packages](managed-packages.md).

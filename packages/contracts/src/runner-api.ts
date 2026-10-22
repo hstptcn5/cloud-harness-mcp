@@ -10,6 +10,7 @@ export const RunnerOperationSchema = z.enum([
   'exec_run', 'bash', 'shell_open', 'shell_io', 'shell_close',
   'sessions_list', 'sessions_open', 'sessions_io', 'sessions_close',
   'tasks_list', 'tasks_run', 'tasks_status', 'tasks_cancel', 'tasks_graph',
+  'ci_run', 'ci_status', 'ci_report',
   'operation_status', 'operation_cancel', 'operation_wait',
   'git_status', 'git_diff', 'git_log', 'git_branch', 'git_checkout', 'git_add', 'git_commit', 'git_fetch', 'git_pull', 'git_push', 'git_merge', 'git_rebase',
   'git_identity_status', 'git_identity_set',

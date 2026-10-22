@@ -14,6 +14,9 @@ export function stepsFor(profile, scripts, { hasLockfile = true } = {}) {
   if (typeof scripts?.test !== 'string' || !scripts.test.trim()) {
     throw new Error('package.json must declare a test script');
   }
+  if (profile === 'node-build' && (typeof scripts?.build !== 'string' || !scripts.build.trim())) {
+    throw new Error('node-build requires a build script; refusing a false PASS');
+  }
   return profiles[profile]
     .map(step => step === 'npm-ci' && !hasLockfile ? 'npm-install' : step)
     .filter(step => step === 'npm-ci' || step === 'npm-install' || step === 'test' || typeof scripts[step] === 'string');
@@ -112,7 +115,7 @@ export async function runCI({ root, reportsDir, profile, run = runCommand }) {
   }
   process.stdout.write('CI_REPORT=' + path.join(dir, 'report.json') + '\n');
   process.stdout.write('CI_STATUS=' + report.status + '\n');
-  return report;
+  return { ...report, reportPath: path.join(dir, 'report.json') };
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

@@ -1,0 +1,59 @@
+# Opt-in CI broker container: extends M1 without touching the existing production stack.
+# Requires cloud-harness-mcp_control network and an operator-provided registry/token.
+name: cloudharness-local-ci
+
+services:
+  ci-broker:
+    image: cloudharness-local-ci:node24
+    build:
+      context: .
+      dockerfile: docker/local-ci.Dockerfile
+    entrypoint: ["node", "/opt/local-ci/broker.mjs"]
+    restart: unless-stopped
+    init: true
+    read_only: true
+    user: "1000:1000"
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    pids_limit: 256
+    mem_limit: 2g
+    cpus: 2.0
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,size=256m
+    volumes:
+      - type: bind
+        source: ${CI_WORKTREE_HOST:?Set a trusted local Git checkout}
+        target: /work
+      - type: bind
+        source: ${CI_CACHE_HOST:?Set operator cache directory}
+        target: /cache
+      - type: bind
+        source: ${CI_REPORT_HOST:?Set operator reports directory}
+        target: /reports
+      - type: bind
+        source: ${CI_BROKER_TOKEN_HOST_FILE:?Set a private token file path}
+        target: /run/local-ci/token
+        read_only: true
+      - type: bind
+        source: ${CI_BROKER_REGISTRY_HOST_FILE:?Set an operator-owned registry file path}
+        target: /run/local-ci/registry.json
+        read_only: true
+    environment:
+      CI: "true"
+      CI_BROKER_MODE: direct
+      CI_BROKER_PORT: 4397
+      CI_BROKER_TOKEN_FILE: /run/local-ci/token
+      CI_BROKER_REGISTRY: /run/local-ci/registry.json
+      NPM_CONFIG_CACHE: /cache/npm
+      NPM_CONFIG_UPDATE_NOTIFIER: "false"
+    networks:
+      - control
+      - ci-egress
+    # No published host port; only the authenticated Runner can invoke it.
+
+networks:
+  control:
+    name: cloud-harness-mcp_control
+    external: true
+  ci-egress:
+    driver: bridge

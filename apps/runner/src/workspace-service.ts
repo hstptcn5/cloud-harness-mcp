@@ -76,6 +76,7 @@ import {
   resolveGitHubFallbackToken
 } from './github-credential-fallback.js';
 import { AgentManager, type AgentManagerDependencies } from './agent-manager.js';
+import type { LocalCiBridge } from './local-ci-bridge.js';
 import { computeFullTreeDigest } from './adapters/mattpocock-adapter.js';
 /** The executor PATH before managed package `bin` directories are inserted ahead of `/usr/local/sbin`. */
 const EXECUTOR_PATH = '/workspace/node_modules/.bin:/opt/user-tools/bin:/opt/user-tools/pnpm/bin:/opt/user-tools/pnpm:/opt/user-tools/bun/bin:/tmp/cloud-harness-home/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin';
@@ -314,6 +315,7 @@ export class WorkspaceService {
   private readonly agentManager?: AgentManager | undefined;
   private readonly metadata?: MetadataStore | undefined;
   private failureIntelligence?: FailureIntelligence | undefined;
+  private localCiBridge?: LocalCiBridge | undefined;
   constructor(
     private readonly config: RunnerConfig,
     private readonly store: StateStore,
@@ -418,6 +420,11 @@ export class WorkspaceService {
   /** Attaches the Decision Plane. Without it every failure keeps only its deterministic classification. */
   useDecisionPlane(plane: DecisionPlane): void {
     this.failureIntelligence = new FailureIntelligence(plane);
+  }
+
+  /** Explicitly opt in to the authenticated operator-owned local CI runner. */
+  useLocalCiBridge(bridge: LocalCiBridge | undefined): void {
+    this.localCiBridge = bridge;
   }
 
   /**
@@ -2765,6 +2772,10 @@ git -c http.followRedirects=false -c core.hooksPath=/dev/null ls-remote "$1" "$2
     const ownerId = this.store.resolvePrincipal(typeof principal === 'string' ? { kind: 'owner', ownerId: principal } : principal);
     RunnerOperationSchema.parse(operation);
     const validated = TOOL_SCHEMA_BY_NAME[operation].parse(input) as Record<string, unknown>;
+    if (operation === 'ci_run' || operation === 'ci_status' || operation === 'ci_report') {
+      if (!this.localCiBridge) return {ok:false,message:'Local CI is not enabled on this Runner',error:{code:'UNAVAILABLE',message:'Local CI is not enabled on this Runner',retryable:false},truncated:false};
+      return await this.localCiBridge.execute(operation, validated, signal);
+    }
     if (operation === 'workspace_open') return await this.open(ownerId, validated);
     if (operation === 'workspace_list') return this.list(ownerId, validated);
     if (operation === 'secrets_list') return this.secretsList(ownerId, validated);

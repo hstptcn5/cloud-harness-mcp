@@ -67,6 +67,10 @@ runtime package versions.
 
 For a separate, cache-backed Node CI worker that does **not** consume GitHub-hosted runner minutes, see [Local CI Worker M1](local-ci-worker.md). It requires an explicit operator-side Docker Compose invocation and does not replace CloudHarness workspace task execution or required GitHub branch checks yet. The production Compose stack remains unchanged.
 
+## Experimental MCP-backed local CI
+
+M1 Docker Desktop evidence and the disabled-by-default M2.2 Runner/MCP CI integration are documented in [Local CI Runner integration](local-ci-runner-integration.md). Do not enable the integrated Compose overrides until full `npm run verify`, Docker integration checks and owner acceptance pass. GitHub Actions remain unchanged.
+
 ## Docker-backed verification
 
 Build the fixed executor and service images before Docker tests:

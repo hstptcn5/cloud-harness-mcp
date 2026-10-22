@@ -5,6 +5,7 @@ RUN apt-get update \
  && rm -rf /var/lib/apt/lists/* \
  && git config --system --add safe.directory /work
 COPY scripts/local-ci-worker.mjs /opt/local-ci/worker.mjs
+COPY scripts/local-ci-broker.mjs /opt/local-ci/broker.mjs
 USER node
 WORKDIR /work
 ENTRYPOINT ["node", "/opt/local-ci/worker.mjs"]
