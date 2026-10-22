@@ -50,6 +50,10 @@ The broker starts only on loopback at port 4397; remote access and MCP invocatio
 
 The follow-up branch adds operator-disabled-by-default `ci_run`, `ci_status`, `ci_report` contracts, a Runner-side authenticated bridge, a separate no-published-port Docker-side broker in `compose.ci.integrated.yaml`, and a Runner-only override. The earlier M2 host broker remains available in loopback mode. Code integration is **NOT** equivalent to deployment. See `docs/local-ci-runner-integration.md` for design, security warnings, operator setup and gates. Full typecheck/production verify and Windows Docker/ChatGPT MCP acceptance are still required. GitHub Actions and production remain unchanged.
 
+## 2026-10-22 Windows acceptance update
+
+Owner executed `npm ci` on `feat/local-ci-runner-m2` (925 packages added, npm audit reported 34 findings: 10 moderate, 22 high, 2 critical), `npm run typecheck` for all workspaces **PASS**, and `npm run plugin:check` **PASS**. Those are locally verified outputs provided by the owner, not tests run inside the isolated CloudHarness executor. Security audit classification and full repository `npm run verify` are still pending. The integrated Compose DNS alias `local-ci-broker` has been explicitly configured to match the Runner bridge target. Do not auto-run `npm audit fix --force` or deploy before reviewing vulnerabilities and the CI execution trust boundary.
+
 ## Remaining gates
 
 - LOCAL_BROKER_UNIT_TESTS: see run log

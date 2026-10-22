@@ -21,5 +21,7 @@ test('Compose keeps broker off host port and without Docker socket; Runner alone
   assert.doesNotMatch(composed,/ports:\s*\n/);
   assert.doesNotMatch(composed,/docker\.sock/);
   assert.match(composed,/cloud-harness-mcp_control/);
+  assert.match(composed,/aliases:\s*\n\s*- local-ci-broker/);
+  assert.match(runner,/CI_BROKER_URL: http:\/\/local-ci-broker:4397/);
   assert.match(runner,/CI_BROKER_TOKEN_FILE/);
 });

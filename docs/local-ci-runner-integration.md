@@ -8,7 +8,7 @@ The previously verified M1 job ran on the owner's Docker Desktop and returned 21
 - `ci_status({runId})`: returns RUNNING, SUCCEEDED or FAILED.
 - `ci_report({runId})`: bounded structured results (step names, exit codes and SHA-256), no step log bodies or repo paths.
 - Runner uses `LocalCiBridge` with fixed URL `http://local-ci-broker:4397`, opt-in `CI_BROKER_ENABLED=true`, and token file; `CI_BROKER_ENABLED` unset is fail-closed. The main API uses its existing principal authorization and authenticated Runner transport.
-- `compose.ci.integrated.yaml` creates an isolated CI broker on the existing `cloud-harness-mcp_control` internal network plus an npm egress network. **No exposed host port and no Docker socket in the executor or CI worker.**
+- `compose.ci.integrated.yaml` creates a CI broker on the existing `cloud-harness-mcp_control` internal network (with explicit DNS alias `local-ci-broker`) plus an npm egress network. **No exposed host port and no Docker socket in the executor or CI worker.** The shared network means npm scripts can reach control-network addresses: this is **not isolation for untrusted code**.
 - The same worker implementation from M1 runs Node tests with persistent host cache/reports, and the broker permits only one job at once.
 - The original operator-only loopback host broker still runs in its own mode; it is not connected to Runner.
 
